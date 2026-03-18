@@ -5,136 +5,238 @@
   <title>マイストアパスポート</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; margin:16px; }
-    h1 { margin: 8px 0; }
-    input { width: 100%; padding: 10px; font-size: 16px; box-sizing: border-box; }
-    .stats { margin: 10px 0; color:#333; font-size:14px; }
-    .store { padding:10px 8px; border-bottom:1px solid #eee; }
-    .meta { color:#666; font-size:12px; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+      margin: 16px;
+    }
+
+    h1 {
+      margin: 8px 0;
+    }
+
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      margin: 12px 0;
+    }
+
+    input[type="text"], select {
+      padding: 10px;
+      font-size: 16px;
+      box-sizing: border-box;
+    }
+
+    input[type="text"] {
+      width: 100%;
+      max-width: 360px;
+    }
+
+    .stats {
+      margin: 10px 0;
+      color: #333;
+      font-size: 14px;
+    }
+
+    .store {
+      padding: 10px 8px;
+      border-bottom: 1px solid #eee;
+    }
+
+    .meta {
+      color: #666;
+      font-size: 12px;
+      margin-top: 4px;
+    }
+
+    .tab-buttons {
+      display: flex;
+      gap: 8px;
+      margin: 12px 0;
+    }
+
+    .filter-inline {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
   </style>
 </head>
 <body>
   <h1>マイストアパスポート</h1>
-  <input id="search" placeholder="店名で検索（例：渋谷 / 京都）">
-  <select id="prefFilter">
-  <option value="">都道府県（すべて）</option>
-</select>
+
+  <div class="tab-buttons">
+    <button id="tabOpen">店舗一覧</button>
+    <button id="tabClosed">閉店店舗一覧</button>
+  </div>
+
+  <div class="toolbar">
+    <input id="search" type="text" placeholder="店名で検索（例：渋谷 / 京都）">
+
+    <select id="prefFilter">
+      <option value="">都道府県（すべて）</option>
+    </select>
+
+    <label class="filter-inline">
+      <input type="checkbox" id="visitedOnly">
+      訪問済みのみ
+    </label>
+  </div>
+
   <div class="stats" id="stats"></div>
   <div id="list"></div>
 
-<script>
-  const KEY = "visited_storeid_v1";
-  let visited = JSON.parse(localStorage.getItem(KEY) || "{}"); // store_id -> true/false
-  let stores = []; // {store_id,name,pref,city,address}
+  <script>
+    const KEY = "visited_storeid_v1";
 
-  const list = document.getElementById("list");
-  const stats = document.getElementById("stats");
-  const search = document.getElementById("search");
-  const prefFilter = document.getElementById("prefFilter");
+    let stores = [];
+    let visited = JSON.parse(localStorage.getItem(KEY) || "{}");
+    let currentTab = "open";
 
-  function save() {
-    localStorage.setItem(KEY, JSON.stringify(visited));
-  }
+    const search = document.getElementById("search");
+    const prefFilter = document.getElementById("prefFilter");
+    const visitedOnly = document.getElementById("visitedOnly");
+    const list = document.getElementById("list");
+    const stats = document.getElementById("stats");
 
-  function parseCSV(text) {
-    const lines = text.trim().split(/\r?\n/);
-    const header = lines.shift().split(",");
+    const tabOpen = document.getElementById("tabOpen");
+    const tabClosed = document.getElementById("tabClosed");
 
-    const idx = {
-      store_id: header.indexOf("store_id"),
-      name: header.indexOf("name"),
-      pref: header.indexOf("pref"),
-      city: header.indexOf("city"),
-      address: header.indexOf("address")
-    };
+    function save() {
+      localStorage.setItem(KEY, JSON.stringify(visited));
+    }
 
-    return lines.map(line => line.split(",")).map(cols => ({
-      store_id: (cols[idx.store_id] || "").trim(),
-      name: (cols[idx.name] || "").trim(),
-      pref: (cols[idx.pref] || "").trim(),
-      city: (cols[idx.city] || "").trim(),
-      address: (cols[idx.address] || "").trim()
-    })).filter(s => s.store_id && s.name);
-  }
+    function parseCSV(text) {
+      const lines = text.trim().split(/\r?\n/);
+      const header = lines.shift().split(",").map(h => h.trim());
 
-  function render() {
-    const q = search.value.trim().toLowerCase();
-    list.innerHTML = "";
+      const idx = {
+        store_id: header.indexOf("store_id"),
+        name: header.indexOf("name"),
+        pref: header.indexOf("pref"),
+        city: header.indexOf("city"),
+        address: header.indexOf("address"),
+        lat: header.indexOf("lat"),
+        lng: header.indexOf("lng"),
+        status: header.indexOf("status"),
+        closed_date: header.indexOf("closed_date"),
+        opened_date: header.indexOf("opened_date")
+      };
 
-    const done = Object.values(visited).filter(Boolean).length;
-    stats.textContent = `進捗：${done} / ${stores.length} 店舗`;
+      return lines
+  .map(line => line.split(","))
+  .map(cols => ({
+    store_id: (cols[idx.store_id] || "").trim(),
+    name: (cols[idx.name] || "").trim(),
+    pref: (cols[idx.pref] || "").trim(),
+    city: (cols[idx.city] || "").trim(),
+    address: (cols[idx.address] || "").trim(),
+    lat: (cols[idx.lat] || "").trim(),
+    lng: (cols[idx.lng] || "").trim(),
+    status: (cols[idx.status] || "open").trim().toLowerCase(),
+    closed_date: (cols[idx.closed_date] || "").trim(),
+    opened_date: (cols[idx.opened_date] || "").trim()
+  }))
+  .filter(s => s.name !== "");
+    }
 
-    const filtered = stores.filter(s => {
-  const matchName = s.name.toLowerCase().includes(q);
-  const matchPref = prefFilter.value === "" || s.pref === prefFilter.value;
-  return matchName && matchPref;
-});
+    function render() {
+      const q = search.value.trim().toLowerCase();
+      list.innerHTML = "";
 
-    filtered.forEach(s => {
-      const row = document.createElement("div");
-      row.className = "store";
+      const done = Object.values(visited).filter(Boolean).length;
+      stats.textContent = `進捗：${done} / ${stores.length} 店舗`;
 
-      const cb = document.createElement("input");
-      cb.type = "checkbox";
-      cb.checked = visited[s.store_id] === true;
+      const filtered = stores.filter(s => {
+        const matchName = s.name.toLowerCase().includes(q);
+        const matchPref = prefFilter.value === "" || s.pref === prefFilter.value;
 
-      cb.addEventListener("change", () => {
-        visited[s.store_id] = cb.checked;
-        save();
+        const isVisited = visited[s.store_id] === true;
+        const matchVisited = visitedOnly.checked ? isVisited : true;
+
+        const matchStatus = s.status === currentTab;
+
+        return matchName && matchPref && matchVisited && matchStatus;
+      });
+
+      filtered.forEach(s => {
+        const row = document.createElement("div");
+        row.className = "store";
+
+        const title = document.createElement("div");
+
+        const cb = document.createElement("input");
+        cb.type = "checkbox";
+        cb.checked = visited[s.store_id] === true;
+
+        cb.addEventListener("change", () => {
+          visited[s.store_id] = cb.checked;
+          save();
+          render();
+        });
+
+        title.appendChild(cb);
+        title.append(" " + s.name);
+
+        const meta = document.createElement("div");
+        meta.className = "meta";
+        meta.textContent = `${s.pref} ${s.city} / ${s.address} / ID:${s.store_id}`;
+
+        row.appendChild(title);
+        row.appendChild(meta);
+        list.appendChild(row);
+      });
+    }
+
+    async function main() {
+      const res = await fetch("./stores.csv");
+      const text = await res.text();
+      stores = parseCSV(text);
+
+      const prefOrder = [
+        "北海道",
+        "青森県","岩手県","宮城県","秋田県","山形県","福島県",
+        "茨城県","栃木県","群馬県","埼玉県","千葉県","東京都","神奈川県",
+        "新潟県","富山県","石川県","福井県","山梨県","長野県",
+        "岐阜県","静岡県","愛知県","三重県",
+        "滋賀県","京都府","大阪府","兵庫県","奈良県","和歌山県",
+        "鳥取県","島根県","岡山県","広島県","山口県",
+        "徳島県","香川県","愛媛県","高知県",
+        "福岡県","佐賀県","長崎県","熊本県","大分県","宮崎県","鹿児島県",
+        "沖縄県"
+      ];
+
+      const prefs = prefOrder.filter(p => stores.some(s => s.pref === p));
+
+      prefs.forEach(p => {
+        const opt = document.createElement("option");
+        opt.value = p;
+        opt.textContent = p;
+        prefFilter.appendChild(opt);
+      });
+
+      search.addEventListener("input", render);
+      prefFilter.addEventListener("change", render);
+      visitedOnly.addEventListener("change", render);
+
+      tabOpen.addEventListener("click", () => {
+        currentTab = "open";
         render();
       });
 
-      const title = document.createElement("div");
-      title.appendChild(cb);
-      title.append(" " + s.name);
+      tabClosed.addEventListener("click", () => {
+        currentTab = "closed";
+        render();
+      });
 
-      const meta = document.createElement("div");
-      meta.className = "meta";
-      meta.textContent = `${s.pref} ${s.city} / ${s.address} / ID:${s.store_id}`;
+      render();
+    }
 
-      row.appendChild(title);
-      row.appendChild(meta);
-      list.appendChild(row);
+    main().catch(err => {
+      stats.textContent = "CSV読み込みエラー";
+      list.innerHTML = `<pre style="white-space:pre-wrap">${String(err)}</pre>`;
     });
-  }
-
-  async function main() {
-    const res = await fetch("./stores.csv");
-    const text = await res.text();
-    stores = parseCSV(text);
-    // 都道府県一覧を作る
-const prefOrder = [
-  "北海道",
-  "青森県","岩手県","宮城県","秋田県","山形県","福島県",
-  "茨城県","栃木県","群馬県","埼玉県","千葉県","東京都","神奈川県",
-  "新潟県","富山県","石川県","福井県","山梨県","長野県",
-  "岐阜県","静岡県","愛知県","三重県",
-  "滋賀県","京都府","大阪府","兵庫県","奈良県","和歌山県",
-  "鳥取県","島根県","岡山県","広島県","山口県",
-  "徳島県","香川県","愛媛県","高知県",
-  "福岡県","佐賀県","長崎県","熊本県","大分県","宮崎県","鹿児島県",
-  "沖縄県"
-];
-
-const prefs = prefOrder.filter(p =>
-  stores.some(s => s.pref === p)
-);
-prefs.forEach(p => {
-  const opt = document.createElement("option");
-  opt.value = p;
-  opt.textContent = p;
-  prefFilter.appendChild(opt);
-});
-
-    search.addEventListener("input", render);
-    prefFilter.addEventListener("change", render);
-    render();
-  }
-
-  main().catch(err => {
-    stats.textContent = "CSV読み込みエラー（サーバー起動してますか？）";
-    list.innerHTML = `<pre style="white-space:pre-wrap">${String(err)}</pre>`;
-  });
-</script>
+  </script>
 </body>
 </html>
