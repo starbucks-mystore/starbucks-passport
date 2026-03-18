@@ -142,52 +142,61 @@
     }
 
     function render() {
-      const q = search.value.trim().toLowerCase();
-      list.innerHTML = "";
+  const q = search.value.trim().toLowerCase();
+  list.innerHTML = "";
 
-      const done = Object.values(visited).filter(Boolean).length;
-      stats.textContent = `進捗：${done} / ${stores.length} 店舗`;
+  // ① まず「母数」を決める
+  // タブ（open/closed）・都道府県・検索までは反映
+  // visitedOnly はまだ反映しない
+  const baseFiltered = stores.filter(s => {
+    const matchName = s.name.toLowerCase().includes(q);
+    const matchPref = prefFilter.value === "" || s.pref === prefFilter.value;
+    const matchStatus = s.status === currentTab;
 
-      const filtered = stores.filter(s => {
-        const matchName = s.name.toLowerCase().includes(q);
-        const matchPref = prefFilter.value === "" || s.pref === prefFilter.value;
+    return matchName && matchPref && matchStatus;
+  });
 
-        const isVisited = visited[s.store_id] === true;
-        const matchVisited = visitedOnly.checked ? isVisited : true;
+  // ② 訪問済み件数は母数の中で数える
+  const done = baseFiltered.filter(s => visited[s.store_id] === true).length;
+  const total = baseFiltered.length;
 
-        const matchStatus = s.status === currentTab;
+  stats.textContent = `進捗：${done} / ${total} 店舗`;
 
-        return matchName && matchPref && matchVisited && matchStatus;
-      });
+  // ③ 実際に表示するリスト
+  // ここでだけ visitedOnly を反映
+  const filtered = baseFiltered.filter(s => {
+    const isVisited = visited[s.store_id] === true;
+    return visitedOnly.checked ? isVisited : true;
+  });
 
-      filtered.forEach(s => {
-        const row = document.createElement("div");
-        row.className = "store";
+  filtered.forEach(s => {
+    const row = document.createElement("div");
+    row.className = "store";
 
-        const title = document.createElement("div");
+    const title = document.createElement("div");
 
-        const cb = document.createElement("input");
-        cb.type = "checkbox";
-        cb.checked = visited[s.store_id] === true;
+    const cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.checked = visited[s.store_id] === true;
 
-        cb.addEventListener("change", () => {
-          visited[s.store_id] = cb.checked;
-          save();
-          render();
-        });
+    cb.addEventListener("change", () => {
+      visited[s.store_id] = cb.checked;
+      save();
+      render();
+    });
 
-        title.appendChild(cb);
-        title.append(" " + s.name);
+    title.appendChild(cb);
+    title.append(" " + s.name);
 
-        const meta = document.createElement("div");
-        meta.className = "meta";
-        meta.textContent = `${s.pref} ${s.city} / ${s.address} / ID:${s.store_id}`;
+    const meta = document.createElement("div");
+    meta.className = "meta";
+    meta.textContent = `${s.pref} ${s.city} / ${s.address} / ID:${s.store_id}`;
 
-        row.appendChild(title);
-        row.appendChild(meta);
-        list.appendChild(row);
-      });
-    }
+    row.appendChild(title);
+    row.appendChild(meta);
+    list.appendChild(row);
+  });
+}
 
     async function main() {
       const res = await fetch("./stores.csv");
