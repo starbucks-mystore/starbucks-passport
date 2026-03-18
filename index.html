@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>マイストアパスポート</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; margin:16px; }
+    h1 { margin: 8px 0; }
+    input { width: 100%; padding: 10px; font-size: 16px; box-sizing: border-box; }
+    .stats { margin: 10px 0; color:#333; font-size:14px; }
+    .store { padding:10px 8px; border-bottom:1px solid #eee; }
+    .meta { color:#666; font-size:12px; }
+  </style>
+</head>
+<body>
+  <h1>マイストアパスポート</h1>
+  <input id="search" placeholder="店名で検索（例：渋谷 / 京都）">
+  <select id="prefFilter">
+  <option value="">都道府県（すべて）</option>
+</select>
+  <div class="stats" id="stats"></div>
+  <div id="list"></div>
+
+<script>
+  const KEY = "visited_storeid_v1";
+  let visited = JSON.parse(localStorage.getItem(KEY) || "{}"); // store_id -> true/false
+  let stores = []; // {store_id,name,pref,city,address}
+
+  const list = document.getElementById("list");
+  const stats = document.getElementById("stats");
+  const search = document.getElementById("search");
+  const prefFilter = document.getElementById("prefFilter");
+
+  function save() {
+    localStorage.setItem(KEY, JSON.stringify(visited));
+  }
+
+  function parseCSV(text) {
+    const lines = text.trim().split(/\r?\n/);
+    const header = lines.shift().split(",");
+
+    const idx = {
+      store_id: header.indexOf("store_id"),
+      name: header.indexOf("name"),
+      pref: header.indexOf("pref"),
+      city: header.indexOf("city"),
+      address: header.indexOf("address")
+    };
+
+    return lines.map(line => line.split(",")).map(cols => ({
+      store_id: (cols[idx.store_id] || "").trim(),
+      name: (cols[idx.name] || "").trim(),
+      pref: (cols[idx.pref] || "").trim(),
+      city: (cols[idx.city] || "").trim(),
+      address: (cols[idx.address] || "").trim()
+    })).filter(s => s.store_id && s.name);
+  }
+
+  function render() {
+    const q = search.value.trim().toLowerCase();
+    list.innerHTML = "";
+
+    const done = Object.values(visited).filter(Boolean).length;
+    stats.textContent = `進捗：${done} / ${stores.length} 店舗`;
+
+    const filtered = stores.filter(s => {
+  const matchName = s.name.toLowerCase().includes(q);
+  const matchPref = prefFilter.value === "" || s.pref === prefFilter.value;
+  return matchName && matchPref;
+});
+
+    filtered.forEach(s => {
+      const row = document.createElement("div");
+      row.className = "store";
+
+      const cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.checked = visited[s.store_id] === true;
+
+      cb.addEventListener("change", () => {
+        visited[s.store_id] = cb.checked;
+        save();
+        render();
+      });
+
+      const title = document.createElement("div");
+      title.appendChild(cb);
+      title.append(" " + s.name);
+
+      const meta = document.createElement("div");
+      meta.className = "meta";
+      meta.textContent = `${s.pref} ${s.city} / ${s.address} / ID:${s.store_id}`;
+
+      row.appendChild(title);
+      row.appendChild(meta);
+      list.appendChild(row);
+    });
+  }
+
+  async function main() {
+    const res = await fetch("./stores.csv");
+    const text = await res.text();
+    stores = parseCSV(text);
+    // 都道府県一覧を作る
+const prefs = [...new Set(stores.map(s => s.pref))].sort();
+prefs.forEach(p => {
+  const opt = document.createElement("option");
+  opt.value = p;
+  opt.textContent = p;
+  prefFilter.appendChild(opt);
+});
+
+    search.addEventListener("input", render);
+    prefFilter.addEventListener("change", render);
+    render();
+  }
+
+  main().catch(err => {
+    stats.textContent = "CSV読み込みエラー（サーバー起動してますか？）";
+    list.innerHTML = `<pre style="white-space:pre-wrap">${String(err)}</pre>`;
+  });
+</script>
+</body>
+</html>
