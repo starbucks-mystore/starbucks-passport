@@ -66,10 +66,20 @@
 <body>
   <h1>マイストアパスポート</h1>
 
+  <div style="margin: 12px 0;">
+  <button id="findNearby">近くの店舗</button>
+</div>
+
+<div id="nearbyResults" style="margin: 12px 0;"></div>
+
   <div class="tab-buttons">
     <button id="tabOpen">店舗一覧</button>
     <button id="tabClosed">閉店店舗一覧</button>
   </div>
+
+</div>
+
+<div id="nearbyResults" style="margin: 12px 0;"></div>
 
   <div class="toolbar">
     <input id="search" type="text" placeholder="店名で検索（例：渋谷 / 京都）">
@@ -102,6 +112,9 @@
 
     const tabOpen = document.getElementById("tabOpen");
     const tabClosed = document.getElementById("tabClosed");
+    const findNearby = document.getElementById("findNearby");
+const nearbyResults = document.getElementById("nearbyResults");
+
 
     function save() {
       localStorage.setItem(KEY, JSON.stringify(visited));
@@ -140,6 +153,67 @@
   }))
   .filter(s => s.name !== "");
     }
+
+    function getDistanceKm(lat1, lng1, lat2, lng2) {
+  const toRad = deg => deg * Math.PI / 180;
+
+  const R = 6371; // 地球半径(km)
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+    Math.sin(dLng / 2) * Math.sin(dLng / 2);
+
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+  return R * c;
+}
+
+function renderNearbyStores(userLat, userLng) {
+  nearbyResults.innerHTML = "";
+
+  const candidates = stores
+    .filter(s => s.status === "open" && s.lat && s.lng)
+    .map(s => {
+      const distance = getDistanceKm(
+        Number(userLat),
+        Number(userLng),
+        Number(s.lat),
+        Number(s.lng)
+      );
+
+      return {
+        ...s,
+        distance
+      };
+    })
+    .sort((a, b) => a.distance - b.distance)
+    .slice(0, 5);
+
+  if (candidates.length === 0) {
+    nearbyResults.innerHTML = "<p>近くの店舗を表示できませんでした（lat/lng未設定の可能性があります）。</p>";
+    return;
+  }
+
+  let html = "<h3>近くの店舗</h3>";
+
+  candidates.forEach(store => {
+    const visitedLabel = visited[store.store_id] === true ? "訪問済み" : "未訪問";
+
+    html += `
+      <div class="store">
+        <div><strong>${store.name}</strong></div>
+        <div class="meta">
+          ${store.pref} ${store.city} / ${store.distance.toFixed(2)} km / ${visitedLabel}
+        </div>
+      </div>
+    `;
+  });
+
+  nearbyResults.innerHTML = html;
+}
 
     function render() {
   const q = search.value.trim().toLowerCase();
@@ -228,6 +302,27 @@
       search.addEventListener("input", render);
       prefFilter.addEventListener("change", render);
       visitedOnly.addEventListener("change", render);
+      findNearby.addEventListener("click", () => {
+  if (!navigator.geolocation) {
+    nearbyResults.innerHTML = "<p>このブラウザでは位置情報が使えません。</p>";
+    return;
+  }
+
+  nearbyResults.innerHTML = "<p>現在地を取得中...</p>";
+
+  navigator.geolocation.getCurrentPosition(
+    position => {
+      const userLat = position.coords.latitude;
+      const userLng = position.coords.longitude;
+
+      renderNearbyStores(userLat, userLng);
+    },
+    error => {
+      nearbyResults.innerHTML = "<p>位置情報を取得できませんでした。位置情報の許可を確認してください。</p>";
+      console.error(error);
+    }
+  );
+});
 
       tabOpen.addEventListener("click", () => {
         currentTab = "open";
