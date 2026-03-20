@@ -61,6 +61,33 @@
       align-items: center;
       gap: 6px;
     }
+
+    #totalStats {
+  margin: 24px 0;
+  padding: 20px 16px;
+  background: #f7f5f2;
+  border-radius: 14px;
+  text-align: center;
+}
+
+#totalStats .label {
+  font-size: 13px;
+  color: #888;
+  letter-spacing: 0.05em;
+}
+
+#totalStats .count {
+  font-size: 36px;
+  font-weight: 600;
+  margin-top: 6px;
+  color: #1c1c1c;
+}
+
+#totalStats .sub {
+  font-size: 12px;
+  color: #aaa;
+  margin-top: 4px;
+}
   </style>
 </head>
 <body>
@@ -95,6 +122,7 @@
   </div>
 
   <div class="stats" id="stats"></div>
+  <div id="totalStats"></div>
   <div id="list"></div>
 
   <script>
@@ -109,6 +137,7 @@
     const visitedOnly = document.getElementById("visitedOnly");
     const list = document.getElementById("list");
     const stats = document.getElementById("stats");
+    const totalStats = document.getElementById("totalStats");
 
     const tabOpen = document.getElementById("tabOpen");
     const tabClosed = document.getElementById("tabClosed");
@@ -235,6 +264,14 @@ function renderNearbyStores(userLat, userLng) {
   const total = baseFiltered.length;
 
   stats.textContent = `進捗：${done} / ${total} 店舗`;
+
+  const totalVisitedCount = Object.values(visited).filter(Boolean).length;
+
+totalStats.innerHTML = `
+  <div class="label">総スタンプ数</div>
+  <div class="count">${totalVisitedCount}</div>
+  <div class="sub">stores visited</div>
+`;
 
   // ③ 実際に表示するリスト
   // ここでだけ visitedOnly を反映
