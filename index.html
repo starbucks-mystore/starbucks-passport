@@ -14,6 +14,21 @@
       margin: 8px 0;
     }
 
+    .top-links {
+      margin: 8px 0 16px;
+      text-align: center;
+    }
+
+    .top-links a {
+      color: #00704a;
+      text-decoration: none;
+      font-size: 14px;
+    }
+
+    .top-links a:hover {
+      text-decoration: underline;
+    }
+
     .toolbar {
       display: flex;
       flex-wrap: wrap;
@@ -50,10 +65,21 @@
       margin-top: 4px;
     }
 
+    .meta a {
+      color: #00704a;
+      text-decoration: none;
+      margin-left: 4px;
+    }
+
+    .meta a:hover {
+      text-decoration: underline;
+    }
+
     .tab-buttons {
       display: flex;
       gap: 8px;
       margin: 12px 0;
+      flex-wrap: wrap;
     }
 
     .filter-inline {
@@ -63,53 +89,64 @@
     }
 
     #totalStats {
-  margin: 24px 0;
-  padding: 20px 16px;
-  background: #f7f5f2;
-  border-radius: 14px;
-  text-align: center;
-}
+      margin: 24px 0;
+      padding: 20px 16px;
+      background: #f7f5f2;
+      border-radius: 14px;
+      text-align: center;
+    }
 
-#totalStats .label {
-  font-size: 13px;
-  color: #888;
-  letter-spacing: 0.05em;
-}
+    #totalStats .label {
+      font-size: 13px;
+      color: #888;
+      letter-spacing: 0.05em;
+    }
 
-#totalStats .count {
-  font-size: 36px;
-  font-weight: 600;
-  margin-top: 6px;
-  color: #1c1c1c;
-}
+    #totalStats .count {
+      font-size: 36px;
+      font-weight: 600;
+      margin-top: 6px;
+      color: #1c1c1c;
+    }
 
-#totalStats .sub {
-  font-size: 12px;
-  color: #aaa;
-  margin-top: 4px;
-}
+    #totalStats .sub {
+      font-size: 12px;
+      color: #aaa;
+      margin-top: 4px;
+    }
+
+    .nearby-wrap {
+      margin: 12px 0;
+    }
   </style>
 </head>
 <body>
   <h1>マイストアパスポート</h1>
 
-  <div style="margin: 12px 0;">
-  <button id="findNearby">近くの店舗</button>
-</div>
+  <div class="top-links">
+    <a href="https://store.starbucks.co.jp/" target="_blank" rel="noopener noreferrer">
+      スターバックス公式 店舗検索
+    </a>
+  </div>
 
-<div id="nearbyResults" style="margin: 12px 0;"></div>
+  <div class="nearby-wrap">
+    <button id="findNearby">近くの店舗</button>
+  </div>
+
+  <div id="nearbyResults" style="margin: 12px 0;"></div>
 
   <div class="tab-buttons">
     <button id="tabOpen">店舗一覧</button>
     <button id="tabClosed">閉店店舗一覧</button>
   </div>
 
-</div>
-
-<div id="nearbyResults" style="margin: 12px 0;"></div>
-
   <div class="toolbar">
-    <input id="search" type="text" placeholder="店名で検索（例：渋谷 / 京都）">
+    <input id="search" type="text" placeholder="店舗名で検索（例：渋谷 / ロースタリー）">
+
+    <select id="searchMode">
+      <option value="name">店舗名検索</option>
+      <option value="keyword">キーワード検索</option>
+    </select>
 
     <select id="prefFilter">
       <option value="">都道府県（すべて）</option>
@@ -131,8 +168,10 @@
     let stores = [];
     let visited = JSON.parse(localStorage.getItem(KEY) || "{}");
     let currentTab = "open";
+    let isNearbyOpen = false;
 
     const search = document.getElementById("search");
+    const searchMode = document.getElementById("searchMode");
     const prefFilter = document.getElementById("prefFilter");
     const visitedOnly = document.getElementById("visitedOnly");
     const list = document.getElementById("list");
@@ -142,8 +181,7 @@
     const tabOpen = document.getElementById("tabOpen");
     const tabClosed = document.getElementById("tabClosed");
     const findNearby = document.getElementById("findNearby");
-const nearbyResults = document.getElementById("nearbyResults");
-
+    const nearbyResults = document.getElementById("nearbyResults");
 
     function save() {
       localStorage.setItem(KEY, JSON.stringify(visited));
@@ -163,151 +201,171 @@ const nearbyResults = document.getElementById("nearbyResults");
         lng: header.indexOf("lng"),
         status: header.indexOf("status"),
         closed_date: header.indexOf("closed_date"),
-        opened_date: header.indexOf("opened_date")
+        opened_date: header.indexOf("opened_date"),
+        map_url: header.indexOf("map_url")
       };
 
       return lines
-  .map(line => line.split(","))
-  .map(cols => ({
-    store_id: (cols[idx.store_id] || "").trim(),
-    name: (cols[idx.name] || "").trim(),
-    pref: (cols[idx.pref] || "").trim(),
-    city: (cols[idx.city] || "").trim(),
-    address: (cols[idx.address] || "").trim(),
-    lat: (cols[idx.lat] || "").trim(),
-    lng: (cols[idx.lng] || "").trim(),
-    status: (cols[idx.status] || "open").trim().toLowerCase(),
-    closed_date: (cols[idx.closed_date] || "").trim(),
-    opened_date: (cols[idx.opened_date] || "").trim()
-  }))
-  .filter(s => s.name !== "");
+        .map(line => line.split(","))
+        .map(cols => ({
+          store_id: (cols[idx.store_id] || "").trim(),
+          name: (cols[idx.name] || "").trim(),
+          pref: (cols[idx.pref] || "").trim(),
+          city: (cols[idx.city] || "").trim(),
+          address: (cols[idx.address] || "").trim(),
+          lat: (cols[idx.lat] || "").trim(),
+          lng: (cols[idx.lng] || "").trim(),
+          status: (cols[idx.status] || "open").trim().toLowerCase(),
+          closed_date: (cols[idx.closed_date] || "").trim(),
+          opened_date: (cols[idx.opened_date] || "").trim(),
+          map_url: (cols[idx.map_url] || "").trim()
+        }))
+        .filter(s => s.name !== "");
     }
 
     function getDistanceKm(lat1, lng1, lat2, lng2) {
-  const toRad = deg => deg * Math.PI / 180;
+      const toRad = deg => deg * Math.PI / 180;
 
-  const R = 6371; // 地球半径(km)
-  const dLat = toRad(lat2 - lat1);
-  const dLng = toRad(lng2 - lng1);
+      const R = 6371;
+      const dLat = toRad(lat2 - lat1);
+      const dLng = toRad(lng2 - lng1);
 
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
-    Math.sin(dLng / 2) * Math.sin(dLng / 2);
+      const a =
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+        Math.sin(dLng / 2) * Math.sin(dLng / 2);
 
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 
-  return R * c;
-}
+      return R * c;
+    }
 
-function renderNearbyStores(userLat, userLng) {
-  nearbyResults.innerHTML = "";
+    function renderNearbyStores(userLat, userLng) {
+      nearbyResults.innerHTML = "";
 
-  const candidates = stores
-    .filter(s => s.status === "open" && s.lat && s.lng)
-    .map(s => {
-      const distance = getDistanceKm(
-        Number(userLat),
-        Number(userLng),
-        Number(s.lat),
-        Number(s.lng)
-      );
+      const candidates = stores
+        .filter(s => s.status === "open" && s.lat && s.lng)
+        .map(s => {
+          const distance = getDistanceKm(
+            Number(userLat),
+            Number(userLng),
+            Number(s.lat),
+            Number(s.lng)
+          );
 
-      return {
-        ...s,
-        distance
-      };
-    })
-    .sort((a, b) => a.distance - b.distance)
-    .slice(0, 5);
+          return {
+            ...s,
+            distance
+          };
+        })
+        .sort((a, b) => a.distance - b.distance)
+        .slice(0, 5);
 
-  if (candidates.length === 0) {
-    nearbyResults.innerHTML = "<p>近くの店舗を表示できませんでした（lat/lng未設定の可能性があります）。</p>";
-    return;
-  }
+      if (candidates.length === 0) {
+        nearbyResults.innerHTML = "<p>近くの店舗を表示できませんでした（lat/lng未設定の可能性があります）。</p>";
+        return;
+      }
 
-  let html = "<h3>近くの店舗</h3>";
+      let html = "<h3>近くの店舗</h3>";
 
-  candidates.forEach(store => {
-    const visitedLabel = visited[store.store_id] === true ? "訪問済み" : "未訪問";
+      candidates.forEach(store => {
+        const visitedLabel = visited[store.store_id] === true ? "訪問済み" : "未訪問";
 
-    html += `
-      <div class="store">
-        <div><strong>${store.name}</strong></div>
-        <div class="meta">
-          ${store.pref} ${store.city} / ${store.distance.toFixed(2)} km / ${visitedLabel}
-        </div>
-      </div>
-    `;
-  });
+        html += `
+          <div class="store">
+            <div><strong>${store.name}</strong></div>
+            <div class="meta">
+              ${store.pref} ${store.city} / ${store.distance.toFixed(2)} km / ${visitedLabel}
+            </div>
+          </div>
+        `;
+      });
 
-  nearbyResults.innerHTML = html;
-}
+      nearbyResults.innerHTML = html;
+    }
 
     function render() {
-  const q = search.value.trim().toLowerCase();
-  list.innerHTML = "";
+      const q = search.value.trim().toLowerCase();
+      list.innerHTML = "";
 
-  // ① まず「母数」を決める
-  // タブ（open/closed）・都道府県・検索までは反映
-  // visitedOnly はまだ反映しない
-  const baseFiltered = stores.filter(s => {
-    const matchName = s.name.toLowerCase().includes(q);
-    const matchPref = prefFilter.value === "" || s.pref === prefFilter.value;
-    const matchStatus = s.status === currentTab;
+      // 母数：タブ・都道府県・検索モードを反映
+      const baseFiltered = stores.filter(s => {
+        let matchSearch = true;
 
-    return matchName && matchPref && matchStatus;
-  });
+        if (q !== "") {
+          if (searchMode.value === "name") {
+            matchSearch = s.name.toLowerCase().includes(q);
+          } else if (searchMode.value === "keyword") {
+            const keywordTarget = `${s.name} ${s.pref} ${s.city} ${s.address}`.toLowerCase();
+            matchSearch = keywordTarget.includes(q);
+          }
+        }
 
-  // ② 訪問済み件数は母数の中で数える
-  const done = baseFiltered.filter(s => visited[s.store_id] === true).length;
-  const total = baseFiltered.length;
+        const matchPref = prefFilter.value === "" || s.pref === prefFilter.value;
+        const matchStatus = s.status === currentTab;
 
-  stats.textContent = `進捗：${done} / ${total} 店舗`;
+        return matchSearch && matchPref && matchStatus;
+      });
 
-  const totalVisitedCount = Object.values(visited).filter(Boolean).length;
+      const done = baseFiltered.filter(s => visited[s.store_id] === true).length;
+      const total = baseFiltered.length;
 
-totalStats.innerHTML = `
-  <div class="label">総スタンプ数</div>
-  <div class="count">${totalVisitedCount}</div>
-  <div class="sub">stores visited</div>
-`;
+      stats.textContent = `進捗：${done} / ${total} 店舗`;
 
-  // ③ 実際に表示するリスト
-  // ここでだけ visitedOnly を反映
-  const filtered = baseFiltered.filter(s => {
-    const isVisited = visited[s.store_id] === true;
-    return visitedOnly.checked ? isVisited : true;
-  });
+      const totalVisitedCount = Object.values(visited).filter(Boolean).length;
+      totalStats.innerHTML = `
+        <div class="label">総スタンプ数</div>
+        <div class="count">${totalVisitedCount}</div>
+        <div class="sub">stores visited</div>
+      `;
 
-  filtered.forEach(s => {
-    const row = document.createElement("div");
-    row.className = "store";
+      // 表示だけ visitedOnly を反映
+      const filtered = baseFiltered.filter(s => {
+        const isVisited = visited[s.store_id] === true;
+        return visitedOnly.checked ? isVisited : true;
+      });
 
-    const title = document.createElement("div");
+      filtered.forEach(s => {
+        const row = document.createElement("div");
+        row.className = "store";
 
-    const cb = document.createElement("input");
-    cb.type = "checkbox";
-    cb.checked = visited[s.store_id] === true;
+        // ③ チェックボックス右寄せ
+        const title = document.createElement("div");
+        title.style.display = "flex";
+        title.style.justifyContent = "space-between";
+        title.style.alignItems = "center";
+        title.style.gap = "12px";
 
-    cb.addEventListener("change", () => {
-      visited[s.store_id] = cb.checked;
-      save();
-      render();
-    });
+        const nameSpan = document.createElement("span");
+        nameSpan.textContent = s.name;
 
-    title.appendChild(cb);
-    title.append(" " + s.name);
+        const cb = document.createElement("input");
+        cb.type = "checkbox";
+        cb.checked = visited[s.store_id] === true;
 
-    const meta = document.createElement("div");
-    meta.className = "meta";
-    meta.textContent = `${s.pref} ${s.city} / ${s.address} / ID:${s.store_id}`;
+        cb.addEventListener("change", () => {
+          visited[s.store_id] = cb.checked;
+          save();
+          render();
+        });
 
-    row.appendChild(title);
-    row.appendChild(meta);
-    list.appendChild(row);
-  });
-}
+        title.appendChild(nameSpan);
+        title.appendChild(cb);
+
+        const meta = document.createElement("div");
+        meta.className = "meta";
+
+        if (s.map_url) {
+          meta.innerHTML = `${s.pref} ${s.city} / ${s.address} / <a href="${s.map_url}" target="_blank" rel="noopener noreferrer">地図を見る</a>`;
+        } else {
+          meta.textContent = `${s.pref} ${s.city} / ${s.address}`;
+        }
+
+        row.appendChild(title);
+        row.appendChild(meta);
+        list.appendChild(row);
+      });
+    }
 
     async function main() {
       const res = await fetch("./stores.csv");
@@ -337,29 +395,48 @@ totalStats.innerHTML = `
       });
 
       search.addEventListener("input", render);
+
+      searchMode.addEventListener("change", () => {
+        if (searchMode.value === "name") {
+          search.placeholder = "店舗名で検索（例：渋谷 / ロースタリー）";
+        } else {
+          search.placeholder = "キーワードで検索（例：札幌 / 大学 / 東京駅）";
+        }
+        render();
+      });
+
       prefFilter.addEventListener("change", render);
       visitedOnly.addEventListener("change", render);
+
+      // B 近くの店舗ボタンをトグル化
       findNearby.addEventListener("click", () => {
-  if (!navigator.geolocation) {
-    nearbyResults.innerHTML = "<p>このブラウザでは位置情報が使えません。</p>";
-    return;
-  }
+        if (isNearbyOpen) {
+          nearbyResults.innerHTML = "";
+          isNearbyOpen = false;
+          return;
+        }
 
-  nearbyResults.innerHTML = "<p>現在地を取得中...</p>";
+        if (!navigator.geolocation) {
+          nearbyResults.innerHTML = "<p>このブラウザでは位置情報が使えません。</p>";
+          return;
+        }
 
-  navigator.geolocation.getCurrentPosition(
-    position => {
-      const userLat = position.coords.latitude;
-      const userLng = position.coords.longitude;
+        nearbyResults.innerHTML = "<p>現在地を取得中...</p>";
 
-      renderNearbyStores(userLat, userLng);
-    },
-    error => {
-      nearbyResults.innerHTML = "<p>位置情報を取得できませんでした。位置情報の許可を確認してください。</p>";
-      console.error(error);
-    }
-  );
-});
+        navigator.geolocation.getCurrentPosition(
+          position => {
+            const userLat = position.coords.latitude;
+            const userLng = position.coords.longitude;
+
+            renderNearbyStores(userLat, userLng);
+            isNearbyOpen = true;
+          },
+          error => {
+            nearbyResults.innerHTML = "<p>位置情報を取得できませんでした。位置情報の許可を確認してください。</p>";
+            console.error(error);
+          }
+        );
+      });
 
       tabOpen.addEventListener("click", () => {
         currentTab = "open";
