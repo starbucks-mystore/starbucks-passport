@@ -117,7 +117,159 @@
 
     .nearby-wrap {
       margin: 12px 0;
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
     }
+
+    .memo-btn {
+      border: none;
+      background: transparent;
+      padding: 0;
+      font-size: 18px;
+      font-weight: 600;
+      cursor: pointer;
+      line-height: 1;
+    }
+
+    .memo-btn.is-empty {
+      color: #ccc;
+    }
+
+    .memo-btn.has-note {
+      color: #006241;
+    }
+
+    .memo-modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.45);
+      justify-content: center;
+      align-items: center;
+      z-index: 1000;
+      padding: 16px;
+      box-sizing: border-box;
+    }
+
+    .memo-modal {
+      background: #fff;
+      border-radius: 14px;
+      padding: 20px;
+      width: 100%;
+      max-width: 420px;
+      box-sizing: border-box;
+    }
+
+    .memo-modal h3 {
+      margin: 0 0 16px;
+      font-size: 18px;
+      line-height: 1.4;
+    }
+
+    .memo-section {
+      margin: 12px 0 16px;
+    }
+
+    .memo-section label {
+      display: block;
+      font-size: 14px;
+      margin-bottom: 6px;
+      color: #333;
+    }
+
+    .visit-count-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .visit-count-row button {
+      width: 40px;
+      height: 40px;
+      border: 1px solid #d9d9d9;
+      background: #f7f5f2;
+      border-radius: 10px;
+      font-size: 20px;
+      font-weight: 500;
+      cursor: pointer;
+      color: #333;
+    }
+
+    .visit-count-row button:hover {
+      background: #efebe6;
+    }
+
+    .visit-count-row input {
+      width: 96px;
+      height: 40px;
+      padding: 6px 8px;
+      font-size: 18px;
+      text-align: center;
+      border: 1px solid #d9d9d9;
+      border-radius: 10px;
+      box-sizing: border-box;
+    }
+
+    #memoInput {
+      width: 100%;
+      min-height: 100px;
+      padding: 10px;
+      font-size: 14px;
+      box-sizing: border-box;
+      resize: vertical;
+    }
+
+    .memo-actions {
+      display: flex;
+      gap: 8px;
+      justify-content: flex-end;
+      margin-top: 16px;
+    }
+
+    .memo-actions button {
+      padding: 10px 14px;
+      border-radius: 8px;
+      border: 1px solid #ddd;
+      background: #fff;
+      cursor: pointer;
+    }
+
+    .memo-actions button.primary {
+      background: #006241;
+      border-color: #006241;
+      color: white;
+    }
+
+    .visit-count-0 {
+      color: #bbb;
+    }
+
+    .visit-count-low {
+      color: #666;
+    }
+
+    .visit-count-mid {
+      color: #333;
+      font-weight: 500;
+    }
+
+    .visit-count-high {
+      color: #006241;
+      font-weight: 600;
+    }
+
+    .visit-count-super {
+      color: #ffae00;
+      font-weight: 800;
+    }
+
+    .check-filters {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: nowrap;
+}
   </style>
 </head>
 <body>
@@ -130,8 +282,11 @@
   </div>
 
   <div class="nearby-wrap">
-    <button id="findNearby">近くの店舗</button>
-  </div>
+  <button id="findNearby">近くの店舗</button>
+  <button id="exportDataBtn">エクスポート</button>
+  <button id="importDataBtn">インポート</button>
+  <input id="importFileInput" type="file" accept=".json,application/json" style="display:none;">
+</div>
 
   <div id="nearbyResults" style="margin: 12px 0;"></div>
 
@@ -141,7 +296,7 @@
   </div>
 
   <div class="toolbar">
-    <input id="search" type="text" placeholder="店舗名で検索（例：渋谷 / ロースタリー）">
+    <input id="search" type="text" placeholder="店舗名で検索（例：渋谷 / 蔦屋書店）">
 
     <select id="searchMode">
       <option value="name">店舗名検索</option>
@@ -152,28 +307,76 @@
       <option value="">都道府県（すべて）</option>
     </select>
 
-    <label class="filter-inline">
-      <input type="checkbox" id="visitedOnly">
-      訪問済みのみ
-    </label>
-  </div>
+    <select id="sortMode">
+      <option value="default">並び替えなし</option>
+      <option value="visitDesc">訪問回数が多い順</option>
+      <option value="unvisitedFirst">未訪問優先</option>
+      <option value="nameAsc">店名順</option>
+    </select>
+
+    <div class="check-filters">
+  <label class="filter-inline">
+    <input type="checkbox" id="visitedOnly">
+    訪問済みのみ
+  </label>
+
+  <label class="filter-inline">
+    <input type="checkbox" id="memoOnly">
+    メモありのみ
+  </label>
+</div>
+</div>
 
   <div class="stats" id="stats"></div>
   <div id="totalStats"></div>
   <div id="list"></div>
 
+  <div id="memoModal" class="memo-modal-overlay">
+    <div class="memo-modal">
+      <h3 id="modalTitle"></h3>
+
+      <div class="memo-section">
+        <label for="visitCountInput">訪問回数</label>
+        <div class="visit-count-row">
+          <button id="minusBtn" type="button">−</button>
+          <input id="visitCountInput" type="number" min="0" max="2000">
+          <button id="plusBtn" type="button">＋</button>
+        </div>
+      </div>
+
+      <div class="memo-section">
+        <label for="memoInput">メモ</label>
+        <textarea id="memoInput"></textarea>
+      </div>
+
+      <div class="memo-actions">
+        <button id="closeMemo" type="button">閉じる</button>
+        <button id="saveMemo" type="button" class="primary">保存</button>
+      </div>
+    </div>
+  </div>
+
   <script>
     const KEY = "visited_storeid_v1";
+    const NOTE_KEY = "store_notes_v1";
 
     let stores = [];
     let visited = JSON.parse(localStorage.getItem(KEY) || "{}");
+    let storeNotes = JSON.parse(localStorage.getItem(NOTE_KEY) || "{}");
     let currentTab = "open";
     let isNearbyOpen = false;
+    let currentMemoStoreId = null;
 
     const search = document.getElementById("search");
     const searchMode = document.getElementById("searchMode");
     const prefFilter = document.getElementById("prefFilter");
+    const sortMode = document.getElementById("sortMode");
     const visitedOnly = document.getElementById("visitedOnly");
+    const memoOnly = document.getElementById("memoOnly");
+    const exportDataBtn = document.getElementById("exportDataBtn");
+    const importDataBtn = document.getElementById("importDataBtn");
+const importFileInput = document.getElementById("importFileInput");
+
     const list = document.getElementById("list");
     const stats = document.getElementById("stats");
     const totalStats = document.getElementById("totalStats");
@@ -183,9 +386,70 @@
     const findNearby = document.getElementById("findNearby");
     const nearbyResults = document.getElementById("nearbyResults");
 
+    const memoModal = document.getElementById("memoModal");
+    const modalTitle = document.getElementById("modalTitle");
+    const visitCountInput = document.getElementById("visitCountInput");
+    const memoInput = document.getElementById("memoInput");
+    const minusBtn = document.getElementById("minusBtn");
+    const plusBtn = document.getElementById("plusBtn");
+    const closeMemo = document.getElementById("closeMemo");
+    const saveMemoBtn = document.getElementById("saveMemo");
+
     function save() {
       localStorage.setItem(KEY, JSON.stringify(visited));
     }
+
+    function saveNotes() {
+      localStorage.setItem(NOTE_KEY, JSON.stringify(storeNotes));
+    }
+
+    function exportData() {
+      const exportObj = {
+        visited,
+        storeNotes,
+        exportedAt: new Date().toISOString()
+      };
+
+      const blob = new Blob(
+        [JSON.stringify(exportObj, null, 2)],
+        { type: "application/json" }
+      );
+
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "my-store-passport-data.json";
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    function importData(file) {
+  const reader = new FileReader();
+
+  reader.onload = (e) => {
+    try {
+      const imported = JSON.parse(e.target.result);
+
+      if (imported.visited && typeof imported.visited === "object") {
+        visited = imported.visited;
+        localStorage.setItem(KEY, JSON.stringify(visited));
+      }
+
+      if (imported.storeNotes && typeof imported.storeNotes === "object") {
+        storeNotes = imported.storeNotes;
+        localStorage.setItem(NOTE_KEY, JSON.stringify(storeNotes));
+      }
+
+      render();
+      alert("データを読み込みました");
+    } catch (err) {
+      alert("JSONの読み込みに失敗しました");
+      console.error(err);
+    }
+  };
+
+  reader.readAsText(file);
+}
 
     function parseCSV(text) {
       const lines = text.trim().split(/\r?\n/);
@@ -225,7 +489,6 @@
 
     function getDistanceKm(lat1, lng1, lat2, lng2) {
       const toRad = deg => deg * Math.PI / 180;
-
       const R = 6371;
       const dLat = toRad(lat2 - lat1);
       const dLng = toRad(lng2 - lng1);
@@ -236,7 +499,6 @@
         Math.sin(dLng / 2) * Math.sin(dLng / 2);
 
       const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-
       return R * c;
     }
 
@@ -245,19 +507,15 @@
 
       const candidates = stores
         .filter(s => s.status === "open" && s.lat && s.lng)
-        .map(s => {
-          const distance = getDistanceKm(
+        .map(s => ({
+          ...s,
+          distance: getDistanceKm(
             Number(userLat),
             Number(userLng),
             Number(s.lat),
             Number(s.lng)
-          );
-
-          return {
-            ...s,
-            distance
-          };
-        })
+          )
+        }))
         .sort((a, b) => a.distance - b.distance)
         .slice(0, 5);
 
@@ -270,7 +528,6 @@
 
       candidates.forEach(store => {
         const visitedLabel = visited[store.store_id] === true ? "訪問済み" : "未訪問";
-
         html += `
           <div class="store">
             <div><strong>${store.name}</strong></div>
@@ -284,18 +541,33 @@
       nearbyResults.innerHTML = html;
     }
 
+    function openMemoModal(store) {
+      currentMemoStoreId = store.store_id;
+      modalTitle.textContent = store.name;
+
+      const data = storeNotes[store.store_id] || {};
+      visitCountInput.value = data.visitCount ?? 0;
+      memoInput.value = data.memo || "";
+
+      memoModal.style.display = "flex";
+    }
+
+    function closeMemoModal() {
+      memoModal.style.display = "none";
+      currentMemoStoreId = null;
+    }
+
     function render() {
       const q = search.value.trim().toLowerCase();
       list.innerHTML = "";
 
-      // 母数：タブ・都道府県・検索モードを反映
       const baseFiltered = stores.filter(s => {
         let matchSearch = true;
 
         if (q !== "") {
           if (searchMode.value === "name") {
             matchSearch = s.name.toLowerCase().includes(q);
-          } else if (searchMode.value === "keyword") {
+          } else {
             const keywordTarget = `${s.name} ${s.pref} ${s.city} ${s.address}`.toLowerCase();
             matchSearch = keywordTarget.includes(q);
           }
@@ -319,25 +591,74 @@
         <div class="sub">stores visited</div>
       `;
 
-      // 表示だけ visitedOnly を反映
-      const filtered = baseFiltered.filter(s => {
+      let filtered = baseFiltered.filter(s => {
         const isVisited = visited[s.store_id] === true;
-        return visitedOnly.checked ? isVisited : true;
+        const noteData = storeNotes[s.store_id];
+        const hasMemo = noteData && noteData.memo && noteData.memo.trim() !== "";
+
+        const matchVisited = visitedOnly.checked ? isVisited : true;
+        const matchMemo = memoOnly.checked ? hasMemo : true;
+
+        return matchVisited && matchMemo;
       });
+
+      if (sortMode.value === "visitDesc") {
+        filtered.sort((a, b) => {
+          const aCount = storeNotes[a.store_id] && storeNotes[a.store_id].visitCount
+            ? Number(storeNotes[a.store_id].visitCount)
+            : 0;
+          const bCount = storeNotes[b.store_id] && storeNotes[b.store_id].visitCount
+            ? Number(storeNotes[b.store_id].visitCount)
+            : 0;
+          return bCount - aCount;
+        });
+      } else if (sortMode.value === "unvisitedFirst") {
+        filtered.sort((a, b) => {
+          const aVisited = visited[a.store_id] === true ? 1 : 0;
+          const bVisited = visited[b.store_id] === true ? 1 : 0;
+          return aVisited - bVisited;
+        });
+      } else if (sortMode.value === "nameAsc") {
+        filtered.sort((a, b) => a.name.localeCompare(b.name, "ja"));
+      }
 
       filtered.forEach(s => {
         const row = document.createElement("div");
         row.className = "store";
 
-        // ③ チェックボックス右寄せ
         const title = document.createElement("div");
         title.style.display = "flex";
         title.style.justifyContent = "space-between";
         title.style.alignItems = "center";
         title.style.gap = "12px";
 
-        const nameSpan = document.createElement("span");
-        nameSpan.textContent = s.name;
+        const noteData = storeNotes[s.store_id];
+        const hasMemo = noteData && noteData.memo && noteData.memo.trim() !== "";
+        const visitCount = noteData && noteData.visitCount ? Number(noteData.visitCount) : 0;
+
+        const left = document.createElement("div");
+
+        const storeName = document.createElement("div");
+        storeName.textContent = s.name;
+        left.appendChild(storeName);
+
+        const visitCountLabel = document.createElement("div");
+        visitCountLabel.className = "meta";
+        visitCountLabel.textContent = `${visitCount}回`;
+
+        if (visitCount === 0) {
+          visitCountLabel.classList.add("visit-count-0");
+        } else if (visitCount < 10) {
+          visitCountLabel.classList.add("visit-count-low");
+        } else if (visitCount < 100) {
+          visitCountLabel.classList.add("visit-count-mid");
+          } else if (visitCount < 1000) {
+          visitCountLabel.classList.add("visit-count-high");
+        } else {
+          visitCountLabel.classList.add("visit-count-super");
+        }
+
+        left.appendChild(visitCountLabel);
 
         const cb = document.createElement("input");
         cb.type = "checkbox";
@@ -345,21 +666,57 @@
 
         cb.addEventListener("change", () => {
           visited[s.store_id] = cb.checked;
+
+          if (cb.checked) {
+            const existing = storeNotes[s.store_id];
+            const existingCount = existing && existing.visitCount ? Number(existing.visitCount) : 0;
+
+            if (existingCount < 1) {
+              storeNotes[s.store_id] = {
+                visitCount: 1,
+                memo: existing && existing.memo ? existing.memo : ""
+              };
+              saveNotes();
+            }
+          }
+
           save();
           render();
         });
 
-        title.appendChild(nameSpan);
-        title.appendChild(cb);
+        const memoBtn = document.createElement("button");
+        memoBtn.type = "button";
+        memoBtn.className = `memo-btn ${hasMemo ? "has-note" : "is-empty"}`;
+        memoBtn.textContent = "✎";
+
+        memoBtn.onclick = () => {
+          openMemoModal(s);
+        };
+
+        const right = document.createElement("div");
+        right.style.display = "flex";
+        right.style.alignItems = "center";
+        right.style.gap = "8px";
+
+        right.appendChild(memoBtn);
+        right.appendChild(cb);
+
+        title.appendChild(left);
+        title.appendChild(right);
 
         const meta = document.createElement("div");
         meta.className = "meta";
 
-        if (s.map_url) {
-          meta.innerHTML = `${s.pref} ${s.city} / ${s.address} / <a href="${s.map_url}" target="_blank" rel="noopener noreferrer">地図を見る</a>`;
-        } else {
-          meta.textContent = `${s.pref} ${s.city} / ${s.address}`;
-        }
+       let mapLink = "";
+
+if (s.lat && s.lng) {
+  mapLink = `https://www.google.com/maps?q=${s.lat},${s.lng}`;
+} else {
+  const fullAddress = `${s.pref}${s.city}${s.address}`;
+  mapLink = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(fullAddress)}`;
+}
+
+meta.innerHTML = `${s.pref} ${s.city} / ${s.address} / <a href="${mapLink}" target="_blank" rel="noopener noreferrer">地図を見る</a>`;
 
         row.appendChild(title);
         row.appendChild(meta);
@@ -398,7 +755,7 @@
 
       searchMode.addEventListener("change", () => {
         if (searchMode.value === "name") {
-          search.placeholder = "店舗名で検索（例：渋谷 / ロースタリー）";
+          search.placeholder = "店舗名で検索（例：渋谷 / 蔦屋書店）";
         } else {
           search.placeholder = "キーワードで検索（例：札幌 / 大学 / 東京駅）";
         }
@@ -406,9 +763,21 @@
       });
 
       prefFilter.addEventListener("change", render);
+      sortMode.addEventListener("change", render);
       visitedOnly.addEventListener("change", render);
+      memoOnly.addEventListener("change", render);
+      exportDataBtn.addEventListener("click", exportData);
+      importDataBtn.addEventListener("click", () => {
+  importFileInput.click();
+});
 
-      // B 近くの店舗ボタンをトグル化
+importFileInput.addEventListener("change", (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  importData(file);
+  importFileInput.value = "";
+});
+
       findNearby.addEventListener("click", () => {
         if (isNearbyOpen) {
           nearbyResults.innerHTML = "";
@@ -446,6 +815,46 @@
       tabClosed.addEventListener("click", () => {
         currentTab = "closed";
         render();
+      });
+
+      minusBtn.onclick = () => {
+        const current = Number(visitCountInput.value || 0);
+        visitCountInput.value = Math.max(0, current - 1);
+      };
+
+      plusBtn.onclick = () => {
+        const current = Number(visitCountInput.value || 0);
+        visitCountInput.value = Math.min(2000, current + 1);
+      };
+
+      closeMemo.onclick = () => {
+        closeMemoModal();
+      };
+
+      saveMemoBtn.onclick = () => {
+        if (!currentMemoStoreId) return;
+
+        const count = Math.min(2000, Math.max(0, Number(visitCountInput.value || 0)));
+        const memoText = memoInput.value.trim();
+
+        if (count === 0 && memoText === "") {
+          delete storeNotes[currentMemoStoreId];
+        } else {
+          storeNotes[currentMemoStoreId] = {
+            visitCount: count,
+            memo: memoText
+          };
+        }
+
+        saveNotes();
+        closeMemoModal();
+        render();
+      };
+
+      memoModal.addEventListener("click", (e) => {
+        if (e.target === memoModal) {
+          closeMemoModal();
+        }
       });
 
       render();
