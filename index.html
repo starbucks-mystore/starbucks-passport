@@ -55,35 +55,35 @@
     }
 
     .search-wrap {
-  position: relative;
-  width: 100%;
-  max-width: 360px;
-}
+      position: relative;
+      width: 100%;
+      max-width: 360px;
+    }
 
-.search-wrap input[type="text"] {
-  width: 100%;
-  max-width: none;
-  padding-right: 40px;
-}
+    .search-wrap input[type="text"] {
+      width: 100%;
+      max-width: none;
+      padding-right: 40px;
+    }
 
-.clear-search-btn {
-  position: absolute;
-  right: 10px;
-  top: 50%;
-  transform: translateY(-50%);
-  border: none;
-  background: transparent;
-  color: #999;
-  font-size: 20px;
-  line-height: 1;
-  cursor: pointer;
-  padding: 0;
-  display: none;
-}
+    .clear-search-btn {
+      position: absolute;
+      right: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      border: none;
+      background: transparent;
+      color: #999;
+      font-size: 20px;
+      line-height: 1;
+      cursor: pointer;
+      padding: 0;
+      display: none;
+    }
 
-.clear-search-btn:hover {
-  color: #333;
-}
+    .clear-search-btn:hover {
+      color: #333;
+    }
 
     .stats {
       margin: 10px 0;
@@ -322,6 +322,100 @@
     .nearby-store-row {
       cursor: pointer;
     }
+
+    .map-popup {
+      min-width: 240px;
+    }
+
+    .map-popup-title {
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+
+    .map-popup-meta {
+      font-size: 12px;
+      color: #666;
+      margin-bottom: 8px;
+      line-height: 1.5;
+    }
+
+    .map-popup-row {
+      margin: 8px 0;
+    }
+
+    .map-popup-row label {
+      display: block;
+      font-size: 12px;
+      color: #333;
+      margin-bottom: 4px;
+    }
+
+    .map-popup-check {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+    }
+
+    .map-popup-count {
+      width: 100%;
+      height: 36px;
+      padding: 6px 8px;
+      font-size: 16px;
+      box-sizing: border-box;
+    }
+
+    .map-popup-memo {
+      width: 100%;
+      min-height: 72px;
+      padding: 8px;
+      font-size: 13px;
+      box-sizing: border-box;
+      resize: vertical;
+    }
+
+    .map-popup-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .map-popup-actions button,
+    .map-popup-actions a {
+      flex: 1;
+      text-align: center;
+      padding: 8px 10px;
+      border-radius: 8px;
+      font-size: 13px;
+      text-decoration: none;
+      box-sizing: border-box;
+    }
+
+    .map-popup-save-btn {
+      border: 1px solid #006241;
+      background: #006241;
+      color: #fff;
+      cursor: pointer;
+    }
+
+    .map-popup-link-btn {
+      border: 1px solid #ddd;
+      background: #fff;
+      color: #00704a;
+    }
+
+    .current-location-popup {
+      font-size: 12px;
+    }
+
+    .current-location-dot {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: #2f80ed;
+      border: 3px solid #ffffff;
+      box-shadow: 0 0 0 2px rgba(47, 128, 237, 0.25);
+    }
   </style>
 </head>
 <body>
@@ -354,9 +448,9 @@
 
   <div class="toolbar">
     <div class="search-wrap">
-  <input id="search" type="text" placeholder="店舗名で検索（例：渋谷 / 蔦屋書店）">
-  <button id="clearSearchBtn" type="button" class="clear-search-btn" aria-label="検索文字をクリア">×</button>
-</div>
+      <input id="search" type="text" placeholder="店舗名で検索（例：渋谷 / 蔦屋書店）">
+      <button id="clearSearchBtn" type="button" class="clear-search-btn" aria-label="検索文字をクリア">×</button>
+    </div>
 
     <select id="searchMode">
       <option value="name">店舗名検索</option>
@@ -375,21 +469,21 @@
     </select>
 
     <div class="check-filters">
-  <label class="filter-inline">
-    <input type="checkbox" id="visitedOnly">
-    訪問済みのみ
-  </label>
+      <label class="filter-inline">
+        <input type="checkbox" id="visitedOnly">
+        訪問済みのみ
+      </label>
 
-  <label class="filter-inline">
-    <input type="checkbox" id="unvisitedOnly">
-    未訪問のみ
-  </label>
+      <label class="filter-inline">
+        <input type="checkbox" id="unvisitedOnly">
+        未訪問のみ
+      </label>
 
-  <label class="filter-inline">
-    <input type="checkbox" id="memoOnly">
-    メモありのみ
-  </label>
-</div>
+      <label class="filter-inline">
+        <input type="checkbox" id="memoOnly">
+        メモありのみ
+      </label>
+    </div>
   </div>
 
   <div class="stats" id="stats"></div>
@@ -439,6 +533,10 @@
     let map = null;
     let mapLayer = null;
     let markerMap = {};
+    let currentLocationMarker = null;
+    let currentLocationCircle = null;
+    let lastOpenedPopupStoreId = null;
+    let suppressNextPopupCloseReset = false;
 
     const search = document.getElementById("search");
     const searchMode = document.getElementById("searchMode");
@@ -481,8 +579,132 @@
     }
 
     function updateClearSearchBtn() {
-  clearSearchBtn.style.display = search.value.trim() === "" ? "none" : "block";
-}
+      clearSearchBtn.style.display = search.value.trim() === "" ? "none" : "block";
+    }
+
+    function escapeHtml(str) {
+      return String(str).replace(/[&<>"']/g, function(ch) {
+        const map = {
+          "&": "&amp;",
+          "<": "&lt;",
+          ">": "&gt;",
+          '"': "&quot;",
+          "'": "&#39;"
+        };
+        return map[ch];
+      });
+    }
+
+    function saveStoreData(storeId, isVisited, visitCount, memoText) {
+      const safeVisited = !!isVisited;
+      const safeCount = Math.min(2000, Math.max(0, Number(visitCount || 0)));
+      const safeMemo = String(memoText || "").trim();
+
+      visited[storeId] = safeVisited;
+
+      if (safeCount === 0 && safeMemo === "") {
+        delete storeNotes[storeId];
+      } else {
+        storeNotes[storeId] = {
+          visitCount: safeCount,
+          memo: safeMemo
+        };
+      }
+
+      if (safeVisited) {
+        const existing = storeNotes[storeId];
+        const existingCount = existing && existing.visitCount ? Number(existing.visitCount) : 0;
+
+        if (existingCount < 1) {
+          storeNotes[storeId] = {
+            visitCount: 1,
+            memo: existing && existing.memo ? existing.memo : ""
+          };
+        }
+      }
+
+      save();
+      saveNotes();
+    }
+
+    function updateCurrentLocationMarker() {
+      if (!map) return;
+
+      if (currentLocationMarker) {
+        map.removeLayer(currentLocationMarker);
+        currentLocationMarker = null;
+      }
+
+      if (currentLocationCircle) {
+        map.removeLayer(currentLocationCircle);
+        currentLocationCircle = null;
+      }
+
+      if (!currentNearbyCoords) return;
+
+      const latlng = [currentNearbyCoords.lat, currentNearbyCoords.lng];
+
+      const currentLocationIcon = L.divIcon({
+        className: "",
+        html: `<div class="current-location-dot"></div>`,
+        iconSize: [20, 20],
+        iconAnchor: [10, 10]
+      });
+
+      currentLocationMarker = L.marker(latlng, {
+        icon: currentLocationIcon,
+        zIndexOffset: 1000
+      }).addTo(map);
+
+      currentLocationMarker.bindPopup(`
+        <div class="current-location-popup">現在地</div>
+      `);
+
+      currentLocationCircle = L.circle(latlng, {
+        radius: 120,
+        color: "#2f80ed",
+        fillColor: "#2f80ed",
+        fillOpacity: 0.12,
+        weight: 1
+      }).addTo(map);
+    }
+
+    function requestCurrentLocation(options = {}) {
+      const { centerMap = false } = options;
+
+      if (!navigator.geolocation) {
+        return;
+      }
+
+      navigator.geolocation.getCurrentPosition(
+        position => {
+          const userLat = position.coords.latitude;
+          const userLng = position.coords.longitude;
+
+          currentNearbyCoords = { lat: userLat, lng: userLng };
+
+          if (isNearbyOpen) {
+            renderNearbyStores(userLat, userLng);
+          }
+
+          if (isMapOpen) {
+            updateCurrentLocationMarker();
+
+            if (centerMap && map) {
+              map.setView([userLat, userLng], 14);
+            }
+          }
+        },
+        error => {
+          console.error("位置情報の取得に失敗しました", error);
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 300000
+        }
+      );
+    }
 
     function exportData() {
       const exportObj = {
@@ -654,7 +876,6 @@
 
           nearbyResults.innerHTML = "";
           isNearbyOpen = false;
-          currentNearbyCoords = null;
 
           render();
         });
@@ -672,6 +893,60 @@
       }).addTo(map);
 
       map.setView([35.681236, 139.767125], 5);
+
+      map.on("popupopen", (e) => {
+        const popupEl = e.popup.getElement();
+        if (!popupEl) return;
+
+        const wrap = popupEl.querySelector(".map-popup");
+        if (!wrap) return;
+
+        const storeId = wrap.dataset.storeId;
+        const visitedInput = wrap.querySelector(".map-popup-visited");
+        const countInput = wrap.querySelector(".map-popup-count");
+        const memoTextarea = wrap.querySelector(".map-popup-memo");
+        const saveBtn = wrap.querySelector(".map-popup-save-btn");
+
+        if (!storeId || !visitedInput || !countInput || !memoTextarea || !saveBtn) return;
+
+        lastOpenedPopupStoreId = storeId;
+
+        visitedInput.addEventListener("change", () => {
+          const currentCount = Math.min(2000, Math.max(0, Number(countInput.value || 0)));
+          if (visitedInput.checked && currentCount < 1) {
+            countInput.value = 1;
+          }
+        });
+
+        saveBtn.addEventListener("click", () => {
+          const isVisited = visitedInput.checked;
+          const visitCount = Math.min(2000, Math.max(0, Number(countInput.value || 0)));
+          const memoText = memoTextarea.value;
+
+          saveStoreData(storeId, isVisited, visitCount, memoText);
+
+          suppressNextPopupCloseReset = true;
+          lastOpenedPopupStoreId = storeId;
+          render();
+        });
+      });
+
+      map.on("popupclose", (e) => {
+        if (suppressNextPopupCloseReset) {
+          suppressNextPopupCloseReset = false;
+          return;
+        }
+
+        const popupEl = e.popup.getElement();
+        if (!popupEl) return;
+
+        const wrap = popupEl.querySelector(".map-popup");
+        if (!wrap) return;
+
+        if (lastOpenedPopupStoreId === wrap.dataset.storeId) {
+          lastOpenedPopupStoreId = null;
+        }
+      });
     }
 
     function renderMapStores(shouldFit = false) {
@@ -708,9 +983,10 @@
         const hasMemo = noteData && noteData.memo && noteData.memo.trim() !== "";
 
         const matchVisited = visitedOnly.checked ? isVisited : true;
+        const matchUnvisited = unvisitedOnly.checked ? !isVisited : true;
         const matchMemo = memoOnly.checked ? hasMemo : true;
 
-        return matchSearch && matchPref && matchStatus && matchVisited && matchMemo;
+        return matchSearch && matchPref && matchStatus && matchVisited && matchUnvisited && matchMemo;
       });
 
       mapStores = mapStores.filter(s => s.lat && s.lng);
@@ -723,11 +999,12 @@
         const noteData = storeNotes[store.store_id];
         const visitCount = noteData && noteData.visitCount ? Number(noteData.visitCount) : 0;
         const memoText = noteData && noteData.memo ? noteData.memo : "";
+        const isVisited = visited[store.store_id] === true;
 
         let color = "#999";
         if (store.status === "closed") {
           color = "#c44";
-        } else if (visited[store.store_id] === true) {
+        } else if (isVisited) {
           color = "#006241";
         }
 
@@ -740,15 +1017,48 @@
         });
 
         const mapLink = getStoreMapLink(store);
+        const escapedName = escapeHtml(store.name);
+        const escapedPref = escapeHtml(store.pref);
+        const escapedCity = escapeHtml(store.city);
+        const escapedAddress = escapeHtml(store.address);
+        const escapedMemo = escapeHtml(memoText);
 
         marker.bindPopup(`
-          <div style="min-width:220px;">
-            <strong>${store.name}</strong><br>
-            <span style="font-size:12px; color:#666;">${store.pref} ${store.city}</span><br>
-            <span style="font-size:12px; color:#666;">${store.address}</span><br>
-            <span style="font-size:12px;">訪問回数：${visitCount}回</span><br>
-            ${memoText ? `<span style="font-size:12px;">メモ：${memoText.replace(/\n/g, "<br>")}</span><br>` : ""}
-            <a href="${mapLink}" target="_blank" rel="noopener noreferrer">Googleマップで開く</a>
+          <div class="map-popup" data-store-id="${store.store_id}">
+            <div class="map-popup-title">${escapedName}</div>
+
+            <div class="map-popup-meta">
+              ${escapedPref} ${escapedCity}<br>
+              ${escapedAddress}
+            </div>
+
+            <div class="map-popup-row">
+              <label class="map-popup-check">
+                <input type="checkbox" class="map-popup-visited" ${isVisited ? "checked" : ""}>
+                訪問済みにする
+              </label>
+            </div>
+
+            <div class="map-popup-row">
+              <label>訪問回数</label>
+              <input
+                type="number"
+                min="0"
+                max="2000"
+                class="map-popup-count"
+                value="${visitCount}"
+              >
+            </div>
+
+            <div class="map-popup-row">
+              <label>メモ</label>
+              <textarea class="map-popup-memo">${escapedMemo}</textarea>
+            </div>
+
+            <div class="map-popup-actions">
+              <button type="button" class="map-popup-save-btn">保存</button>
+              <a href="${mapLink}" target="_blank" rel="noopener noreferrer" class="map-popup-link-btn">Googleマップ</a>
+            </div>
           </div>
         `);
 
@@ -759,12 +1069,30 @@
 
       mapLayer.addTo(map);
 
-      if (shouldFit && bounds.length > 0) {
-        map.fitBounds(bounds, { padding: [20, 20] });
+      updateCurrentLocationMarker();
+
+      if (shouldFit) {
+        const fitTargets = [...bounds];
+
+        if (currentNearbyCoords) {
+          fitTargets.push([currentNearbyCoords.lat, currentNearbyCoords.lng]);
+        }
+
+        if (fitTargets.length > 1) {
+          map.fitBounds(fitTargets, { padding: [20, 20] });
+        } else if (fitTargets.length === 1) {
+          map.setView(fitTargets[0], currentNearbyCoords ? 14 : 16);
+        } else {
+          map.setView([35.681236, 139.767125], 5);
+        }
       }
 
       setTimeout(() => {
         map.invalidateSize();
+
+        if (lastOpenedPopupStoreId && markerMap[lastOpenedPopupStoreId]) {
+          markerMap[lastOpenedPopupStoreId].openPopup();
+        }
       }, 0);
     }
 
@@ -785,10 +1113,10 @@
     }
 
     function render() {
-  updateClearSearchBtn();
+      updateClearSearchBtn();
 
-  const q = search.value.trim().toLowerCase();
-  list.innerHTML = "";
+      const q = search.value.trim().toLowerCase();
+      list.innerHTML = "";
 
       const baseFiltered = stores.filter(s => {
         let matchSearch = true;
@@ -821,16 +1149,16 @@
       `;
 
       let filtered = baseFiltered.filter(s => {
-  const isVisited = visited[s.store_id] === true;
-  const noteData = storeNotes[s.store_id];
-  const hasMemo = noteData && noteData.memo && noteData.memo.trim() !== "";
+        const isVisited = visited[s.store_id] === true;
+        const noteData = storeNotes[s.store_id];
+        const hasMemo = noteData && noteData.memo && noteData.memo.trim() !== "";
 
-  const matchVisited = visitedOnly.checked ? isVisited : true;
-  const matchUnvisited = unvisitedOnly.checked ? !isVisited : true;
-  const matchMemo = memoOnly.checked ? hasMemo : true;
+        const matchVisited = visitedOnly.checked ? isVisited : true;
+        const matchUnvisited = unvisitedOnly.checked ? !isVisited : true;
+        const matchMemo = memoOnly.checked ? hasMemo : true;
 
-  return matchVisited && matchUnvisited && matchMemo;
-});
+        return matchVisited && matchUnvisited && matchMemo;
+      });
 
       if (sortMode.value === "visitDesc") {
         filtered.sort((a, b) => {
@@ -898,22 +1226,17 @@
         cb.addEventListener("change", (e) => {
           e.stopPropagation();
 
-          visited[s.store_id] = cb.checked;
+          const existing = storeNotes[s.store_id] || {};
+          const existingCount = existing.visitCount ? Number(existing.visitCount) : 0;
+          const existingMemo = existing.memo || "";
 
-          if (cb.checked) {
-            const existing = storeNotes[s.store_id];
-            const existingCount = existing && existing.visitCount ? Number(existing.visitCount) : 0;
+          saveStoreData(
+            s.store_id,
+            cb.checked,
+            existingCount,
+            existingMemo
+          );
 
-            if (existingCount < 1) {
-              storeNotes[s.store_id] = {
-                visitCount: 1,
-                memo: existing && existing.memo ? existing.memo : ""
-              };
-              saveNotes();
-            }
-          }
-
-          save();
           render();
         });
 
@@ -957,10 +1280,12 @@
             mapSection.style.display = "block";
             isMapOpen = true;
             renderMapStores(true);
+            requestCurrentLocation({ centerMap: false });
           }
 
           const marker = markerMap[s.store_id];
           if (marker) {
+            lastOpenedPopupStoreId = s.store_id;
             const latlng = marker.getLatLng();
             map.setView(latlng, 16);
             marker.openPopup();
@@ -1005,16 +1330,16 @@
       });
 
       search.addEventListener("input", () => {
-  updateClearSearchBtn();
-  render();
-});
+        updateClearSearchBtn();
+        render();
+      });
 
-clearSearchBtn.addEventListener("click", () => {
-  search.value = "";
-  updateClearSearchBtn();
-  render();
-  search.focus();
-});
+      clearSearchBtn.addEventListener("click", () => {
+        search.value = "";
+        updateClearSearchBtn();
+        render();
+        search.focus();
+      });
 
       searchMode.addEventListener("change", () => {
         if (searchMode.value === "name") {
@@ -1049,6 +1374,10 @@ clearSearchBtn.addEventListener("click", () => {
           nearbyResults.innerHTML = "";
           isNearbyOpen = false;
           currentNearbyCoords = null;
+
+          if (isMapOpen) {
+            updateCurrentLocationMarker();
+          }
           return;
         }
 
@@ -1067,10 +1396,19 @@ clearSearchBtn.addEventListener("click", () => {
             currentNearbyCoords = { lat: userLat, lng: userLng };
             renderNearbyStores(userLat, userLng);
             isNearbyOpen = true;
+
+            if (isMapOpen) {
+              updateCurrentLocationMarker();
+            }
           },
           error => {
             nearbyResults.innerHTML = "<p>位置情報を取得できませんでした。位置情報の許可を確認してください。</p>";
             console.error(error);
+          },
+          {
+            enableHighAccuracy: true,
+            timeout: 10000,
+            maximumAge: 300000
           }
         );
       });
@@ -1079,12 +1417,14 @@ clearSearchBtn.addEventListener("click", () => {
         if (isMapOpen) {
           mapSection.style.display = "none";
           isMapOpen = false;
+          lastOpenedPopupStoreId = null;
           return;
         }
 
         mapSection.style.display = "block";
         isMapOpen = true;
         renderMapStores(true);
+        requestCurrentLocation({ centerMap: false });
       });
 
       tabOpen.addEventListener("click", () => {
@@ -1116,17 +1456,10 @@ clearSearchBtn.addEventListener("click", () => {
 
         const count = Math.min(2000, Math.max(0, Number(visitCountInput.value || 0)));
         const memoText = memoInput.value.trim();
+        const isVisited = visited[currentMemoStoreId] === true;
 
-        if (count === 0 && memoText === "") {
-          delete storeNotes[currentMemoStoreId];
-        } else {
-          storeNotes[currentMemoStoreId] = {
-            visitCount: count,
-            memo: memoText
-          };
-        }
+        saveStoreData(currentMemoStoreId, isVisited, count, memoText);
 
-        saveNotes();
         closeMemoModal();
         render();
       };
