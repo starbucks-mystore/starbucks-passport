@@ -54,6 +54,37 @@
       max-width: 360px;
     }
 
+    .search-wrap {
+  position: relative;
+  width: 100%;
+  max-width: 360px;
+}
+
+.search-wrap input[type="text"] {
+  width: 100%;
+  max-width: none;
+  padding-right: 40px;
+}
+
+.clear-search-btn {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  border: none;
+  background: transparent;
+  color: #999;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+  display: none;
+}
+
+.clear-search-btn:hover {
+  color: #333;
+}
+
     .stats {
       margin: 10px 0;
       color: #333;
@@ -322,7 +353,10 @@
   </div>
 
   <div class="toolbar">
-    <input id="search" type="text" placeholder="店舗名で検索（例：渋谷 / 蔦屋書店）">
+    <div class="search-wrap">
+  <input id="search" type="text" placeholder="店舗名で検索（例：渋谷 / 蔦屋書店）">
+  <button id="clearSearchBtn" type="button" class="clear-search-btn" aria-label="検索文字をクリア">×</button>
+</div>
 
     <select id="searchMode">
       <option value="name">店舗名検索</option>
@@ -410,6 +444,7 @@
     const searchMode = document.getElementById("searchMode");
     const prefFilter = document.getElementById("prefFilter");
     const sortMode = document.getElementById("sortMode");
+    const clearSearchBtn = document.getElementById("clearSearchBtn");
     const visitedOnly = document.getElementById("visitedOnly");
     const unvisitedOnly = document.getElementById("unvisitedOnly");
     const memoOnly = document.getElementById("memoOnly");
@@ -444,6 +479,10 @@
     function saveNotes() {
       localStorage.setItem(NOTE_KEY, JSON.stringify(storeNotes));
     }
+
+    function updateClearSearchBtn() {
+  clearSearchBtn.style.display = search.value.trim() === "" ? "none" : "block";
+}
 
     function exportData() {
       const exportObj = {
@@ -746,8 +785,10 @@
     }
 
     function render() {
-      const q = search.value.trim().toLowerCase();
-      list.innerHTML = "";
+  updateClearSearchBtn();
+
+  const q = search.value.trim().toLowerCase();
+  list.innerHTML = "";
 
       const baseFiltered = stores.filter(s => {
         let matchSearch = true;
@@ -963,7 +1004,17 @@
         prefFilter.appendChild(opt);
       });
 
-      search.addEventListener("input", render);
+      search.addEventListener("input", () => {
+  updateClearSearchBtn();
+  render();
+});
+
+clearSearchBtn.addEventListener("click", () => {
+  search.value = "";
+  updateClearSearchBtn();
+  render();
+  search.focus();
+});
 
       searchMode.addEventListener("change", () => {
         if (searchMode.value === "name") {
