@@ -4,6 +4,12 @@
   <meta charset="UTF-8">
   <title>マイストアパスポート</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+  />
+
   <style>
     body {
       font-family: -apple-system, BlinkMacSystemFont, sans-serif;
@@ -265,11 +271,26 @@
     }
 
     .check-filters {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: nowrap;
-}
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: nowrap;
+    }
+
+    #mapSection {
+      display: none;
+      margin: 12px 0;
+    }
+
+    #storeMap {
+      height: 420px;
+      border-radius: 12px;
+      overflow: hidden;
+    }
+
+    .nearby-store-row {
+      cursor: pointer;
+    }
   </style>
 </head>
 <body>
@@ -282,13 +303,18 @@
   </div>
 
   <div class="nearby-wrap">
-  <button id="findNearby">近くの店舗</button>
-  <button id="exportDataBtn">エクスポート</button>
-  <button id="importDataBtn">インポート</button>
-  <input id="importFileInput" type="file" accept=".json,application/json" style="display:none;">
-</div>
+    <button id="findNearby">近くの店舗</button>
+    <button id="toggleMapBtn">地図で見る</button>
+    <button id="exportDataBtn">エクスポート</button>
+    <button id="importDataBtn">インポート</button>
+    <input id="importFileInput" type="file" accept=".json,application/json" style="display:none;">
+  </div>
 
   <div id="nearbyResults" style="margin: 12px 0;"></div>
+
+  <div id="mapSection">
+    <div id="storeMap"></div>
+  </div>
 
   <div class="tab-buttons">
     <button id="tabOpen">店舗一覧</button>
@@ -321,11 +347,16 @@
   </label>
 
   <label class="filter-inline">
+    <input type="checkbox" id="unvisitedOnly">
+    未訪問のみ
+  </label>
+
+  <label class="filter-inline">
     <input type="checkbox" id="memoOnly">
     メモありのみ
   </label>
 </div>
-</div>
+  </div>
 
   <div class="stats" id="stats"></div>
   <div id="totalStats"></div>
@@ -356,6 +387,8 @@
     </div>
   </div>
 
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
   <script>
     const KEY = "visited_storeid_v1";
     const NOTE_KEY = "store_notes_v1";
@@ -366,16 +399,25 @@
     let currentTab = "open";
     let isNearbyOpen = false;
     let currentMemoStoreId = null;
+    let currentNearbyCoords = null;
+
+    let isMapOpen = false;
+    let map = null;
+    let mapLayer = null;
+    let markerMap = {};
 
     const search = document.getElementById("search");
     const searchMode = document.getElementById("searchMode");
     const prefFilter = document.getElementById("prefFilter");
     const sortMode = document.getElementById("sortMode");
     const visitedOnly = document.getElementById("visitedOnly");
+    const unvisitedOnly = document.getElementById("unvisitedOnly");
     const memoOnly = document.getElementById("memoOnly");
     const exportDataBtn = document.getElementById("exportDataBtn");
     const importDataBtn = document.getElementById("importDataBtn");
-const importFileInput = document.getElementById("importFileInput");
+    const importFileInput = document.getElementById("importFileInput");
+    const toggleMapBtn = document.getElementById("toggleMapBtn");
+    const mapSection = document.getElementById("mapSection");
 
     const list = document.getElementById("list");
     const stats = document.getElementById("stats");
@@ -424,32 +466,32 @@ const importFileInput = document.getElementById("importFileInput");
     }
 
     function importData(file) {
-  const reader = new FileReader();
+      const reader = new FileReader();
 
-  reader.onload = (e) => {
-    try {
-      const imported = JSON.parse(e.target.result);
+      reader.onload = (e) => {
+        try {
+          const imported = JSON.parse(e.target.result);
 
-      if (imported.visited && typeof imported.visited === "object") {
-        visited = imported.visited;
-        localStorage.setItem(KEY, JSON.stringify(visited));
-      }
+          if (imported.visited && typeof imported.visited === "object") {
+            visited = imported.visited;
+            localStorage.setItem(KEY, JSON.stringify(visited));
+          }
 
-      if (imported.storeNotes && typeof imported.storeNotes === "object") {
-        storeNotes = imported.storeNotes;
-        localStorage.setItem(NOTE_KEY, JSON.stringify(storeNotes));
-      }
+          if (imported.storeNotes && typeof imported.storeNotes === "object") {
+            storeNotes = imported.storeNotes;
+            localStorage.setItem(NOTE_KEY, JSON.stringify(storeNotes));
+          }
 
-      render();
-      alert("データを読み込みました");
-    } catch (err) {
-      alert("JSONの読み込みに失敗しました");
-      console.error(err);
+          render();
+          alert("データを読み込みました");
+        } catch (err) {
+          alert("JSONの読み込みに失敗しました");
+          console.error(err);
+        }
+      };
+
+      reader.readAsText(file);
     }
-  };
-
-  reader.readAsText(file);
-}
 
     function parseCSV(text) {
       const lines = text.trim().split(/\r?\n/);
@@ -502,6 +544,15 @@ const importFileInput = document.getElementById("importFileInput");
       return R * c;
     }
 
+    function getStoreMapLink(store) {
+      if (store.lat && store.lng) {
+        return `https://www.google.com/maps?q=${store.lat},${store.lng}`;
+      }
+
+      const fullAddress = `${store.pref}${store.city}${store.address}`;
+      return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(fullAddress)}`;
+    }
+
     function renderNearbyStores(userLat, userLng) {
       nearbyResults.innerHTML = "";
 
@@ -524,21 +575,158 @@ const importFileInput = document.getElementById("importFileInput");
         return;
       }
 
-      let html = "<h3>近くの店舗</h3>";
+      const title = document.createElement("h3");
+      title.textContent = "近くの店舗";
+      nearbyResults.appendChild(title);
 
       candidates.forEach(store => {
+        const row = document.createElement("div");
+        row.className = "store nearby-store-row";
+
+        const top = document.createElement("div");
+        top.style.display = "flex";
+        top.style.justifyContent = "space-between";
+        top.style.alignItems = "center";
+        top.style.gap = "12px";
+
+        const left = document.createElement("div");
+
+        const name = document.createElement("div");
+        name.textContent = store.name;
+        left.appendChild(name);
+
+        const distance = document.createElement("div");
+        distance.className = "meta";
+
+        const noteData = storeNotes[store.store_id];
+        const visitCount = noteData && noteData.visitCount ? Number(noteData.visitCount) : 0;
         const visitedLabel = visited[store.store_id] === true ? "訪問済み" : "未訪問";
-        html += `
-          <div class="store">
-            <div><strong>${store.name}</strong></div>
-            <div class="meta">
-              ${store.pref} ${store.city} / ${store.distance.toFixed(2)} km / ${visitedLabel}
-            </div>
-          </div>
-        `;
+
+        distance.textContent = `${store.distance.toFixed(2)} km / ${visitedLabel} / ${visitCount}回`;
+        left.appendChild(distance);
+
+        top.appendChild(left);
+        row.appendChild(top);
+
+        row.addEventListener("click", () => {
+          searchMode.value = "name";
+          search.value = store.name;
+          prefFilter.value = store.pref;
+
+          nearbyResults.innerHTML = "";
+          isNearbyOpen = false;
+          currentNearbyCoords = null;
+
+          render();
+        });
+
+        nearbyResults.appendChild(row);
+      });
+    }
+
+    function ensureMap() {
+      if (map) return;
+
+      map = L.map("storeMap");
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        attribution: "&copy; OpenStreetMap contributors"
+      }).addTo(map);
+
+      map.setView([35.681236, 139.767125], 5);
+    }
+
+    function renderMapStores(shouldFit = false) {
+      if (!isMapOpen) return;
+
+      ensureMap();
+
+      if (mapLayer) {
+        map.removeLayer(mapLayer);
+      }
+
+      markerMap = {};
+      mapLayer = L.layerGroup();
+
+      const q = search.value.trim().toLowerCase();
+
+      let mapStores = stores.filter(s => {
+        let matchSearch = true;
+
+        if (q !== "") {
+          if (searchMode.value === "name") {
+            matchSearch = s.name.toLowerCase().includes(q);
+          } else {
+            const keywordTarget = `${s.name} ${s.pref} ${s.city} ${s.address}`.toLowerCase();
+            matchSearch = keywordTarget.includes(q);
+          }
+        }
+
+        const matchPref = prefFilter.value === "" || s.pref === prefFilter.value;
+        const matchStatus = s.status === currentTab;
+
+        const isVisited = visited[s.store_id] === true;
+        const noteData = storeNotes[s.store_id];
+        const hasMemo = noteData && noteData.memo && noteData.memo.trim() !== "";
+
+        const matchVisited = visitedOnly.checked ? isVisited : true;
+        const matchMemo = memoOnly.checked ? hasMemo : true;
+
+        return matchSearch && matchPref && matchStatus && matchVisited && matchMemo;
       });
 
-      nearbyResults.innerHTML = html;
+      mapStores = mapStores.filter(s => s.lat && s.lng);
+
+      const bounds = [];
+
+      mapStores.forEach(store => {
+        const lat = Number(store.lat);
+        const lng = Number(store.lng);
+        const noteData = storeNotes[store.store_id];
+        const visitCount = noteData && noteData.visitCount ? Number(noteData.visitCount) : 0;
+        const memoText = noteData && noteData.memo ? noteData.memo : "";
+
+        let color = "#999";
+        if (store.status === "closed") {
+          color = "#c44";
+        } else if (visited[store.store_id] === true) {
+          color = "#006241";
+        }
+
+        const marker = L.circleMarker([lat, lng], {
+          radius: 7,
+          color,
+          fillColor: color,
+          fillOpacity: 0.85,
+          weight: 1
+        });
+
+        const mapLink = getStoreMapLink(store);
+
+        marker.bindPopup(`
+          <div style="min-width:220px;">
+            <strong>${store.name}</strong><br>
+            <span style="font-size:12px; color:#666;">${store.pref} ${store.city}</span><br>
+            <span style="font-size:12px; color:#666;">${store.address}</span><br>
+            <span style="font-size:12px;">訪問回数：${visitCount}回</span><br>
+            ${memoText ? `<span style="font-size:12px;">メモ：${memoText.replace(/\n/g, "<br>")}</span><br>` : ""}
+            <a href="${mapLink}" target="_blank" rel="noopener noreferrer">Googleマップで開く</a>
+          </div>
+        `);
+
+        marker.addTo(mapLayer);
+        markerMap[store.store_id] = marker;
+        bounds.push([lat, lng]);
+      });
+
+      mapLayer.addTo(map);
+
+      if (shouldFit && bounds.length > 0) {
+        map.fitBounds(bounds, { padding: [20, 20] });
+      }
+
+      setTimeout(() => {
+        map.invalidateSize();
+      }, 0);
     }
 
     function openMemoModal(store) {
@@ -592,15 +780,16 @@ const importFileInput = document.getElementById("importFileInput");
       `;
 
       let filtered = baseFiltered.filter(s => {
-        const isVisited = visited[s.store_id] === true;
-        const noteData = storeNotes[s.store_id];
-        const hasMemo = noteData && noteData.memo && noteData.memo.trim() !== "";
+  const isVisited = visited[s.store_id] === true;
+  const noteData = storeNotes[s.store_id];
+  const hasMemo = noteData && noteData.memo && noteData.memo.trim() !== "";
 
-        const matchVisited = visitedOnly.checked ? isVisited : true;
-        const matchMemo = memoOnly.checked ? hasMemo : true;
+  const matchVisited = visitedOnly.checked ? isVisited : true;
+  const matchUnvisited = unvisitedOnly.checked ? !isVisited : true;
+  const matchMemo = memoOnly.checked ? hasMemo : true;
 
-        return matchVisited && matchMemo;
-      });
+  return matchVisited && matchUnvisited && matchMemo;
+});
 
       if (sortMode.value === "visitDesc") {
         filtered.sort((a, b) => {
@@ -625,6 +814,7 @@ const importFileInput = document.getElementById("importFileInput");
       filtered.forEach(s => {
         const row = document.createElement("div");
         row.className = "store";
+        row.style.cursor = "pointer";
 
         const title = document.createElement("div");
         title.style.display = "flex";
@@ -652,7 +842,7 @@ const importFileInput = document.getElementById("importFileInput");
           visitCountLabel.classList.add("visit-count-low");
         } else if (visitCount < 100) {
           visitCountLabel.classList.add("visit-count-mid");
-          } else if (visitCount < 1000) {
+        } else if (visitCount < 1000) {
           visitCountLabel.classList.add("visit-count-high");
         } else {
           visitCountLabel.classList.add("visit-count-super");
@@ -664,7 +854,9 @@ const importFileInput = document.getElementById("importFileInput");
         cb.type = "checkbox";
         cb.checked = visited[s.store_id] === true;
 
-        cb.addEventListener("change", () => {
+        cb.addEventListener("change", (e) => {
+          e.stopPropagation();
+
           visited[s.store_id] = cb.checked;
 
           if (cb.checked) {
@@ -689,7 +881,8 @@ const importFileInput = document.getElementById("importFileInput");
         memoBtn.className = `memo-btn ${hasMemo ? "has-note" : "is-empty"}`;
         memoBtn.textContent = "✎";
 
-        memoBtn.onclick = () => {
+        memoBtn.onclick = (e) => {
+          e.stopPropagation();
           openMemoModal(s);
         };
 
@@ -707,21 +900,40 @@ const importFileInput = document.getElementById("importFileInput");
         const meta = document.createElement("div");
         meta.className = "meta";
 
-       let mapLink = "";
+        const mapLink = getStoreMapLink(s);
+        meta.innerHTML = `${s.pref} ${s.city} / ${s.address} / <a href="${mapLink}" target="_blank" rel="noopener noreferrer">地図を見る</a>`;
 
-if (s.lat && s.lng) {
-  mapLink = `https://www.google.com/maps?q=${s.lat},${s.lng}`;
-} else {
-  const fullAddress = `${s.pref}${s.city}${s.address}`;
-  mapLink = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(fullAddress)}`;
-}
+        row.addEventListener("click", (e) => {
+          if (
+            e.target.tagName === "INPUT" ||
+            e.target.tagName === "BUTTON" ||
+            e.target.tagName === "A"
+          ) {
+            return;
+          }
 
-meta.innerHTML = `${s.pref} ${s.city} / ${s.address} / <a href="${mapLink}" target="_blank" rel="noopener noreferrer">地図を見る</a>`;
+          if (!isMapOpen) {
+            mapSection.style.display = "block";
+            isMapOpen = true;
+            renderMapStores(true);
+          }
+
+          const marker = markerMap[s.store_id];
+          if (marker) {
+            const latlng = marker.getLatLng();
+            map.setView(latlng, 16);
+            marker.openPopup();
+          }
+        });
 
         row.appendChild(title);
         row.appendChild(meta);
         list.appendChild(row);
       });
+
+      if (isMapOpen) {
+        renderMapStores(false);
+      }
     }
 
     async function main() {
@@ -765,23 +977,27 @@ meta.innerHTML = `${s.pref} ${s.city} / ${s.address} / <a href="${mapLink}" targ
       prefFilter.addEventListener("change", render);
       sortMode.addEventListener("change", render);
       visitedOnly.addEventListener("change", render);
+      unvisitedOnly.addEventListener("change", render);
       memoOnly.addEventListener("change", render);
-      exportDataBtn.addEventListener("click", exportData);
-      importDataBtn.addEventListener("click", () => {
-  importFileInput.click();
-});
 
-importFileInput.addEventListener("change", (e) => {
-  const file = e.target.files[0];
-  if (!file) return;
-  importData(file);
-  importFileInput.value = "";
-});
+      exportDataBtn.addEventListener("click", exportData);
+
+      importDataBtn.addEventListener("click", () => {
+        importFileInput.click();
+      });
+
+      importFileInput.addEventListener("change", (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        importData(file);
+        importFileInput.value = "";
+      });
 
       findNearby.addEventListener("click", () => {
         if (isNearbyOpen) {
           nearbyResults.innerHTML = "";
           isNearbyOpen = false;
+          currentNearbyCoords = null;
           return;
         }
 
@@ -797,6 +1013,7 @@ importFileInput.addEventListener("change", (e) => {
             const userLat = position.coords.latitude;
             const userLng = position.coords.longitude;
 
+            currentNearbyCoords = { lat: userLat, lng: userLng };
             renderNearbyStores(userLat, userLng);
             isNearbyOpen = true;
           },
@@ -805,6 +1022,18 @@ importFileInput.addEventListener("change", (e) => {
             console.error(error);
           }
         );
+      });
+
+      toggleMapBtn.addEventListener("click", () => {
+        if (isMapOpen) {
+          mapSection.style.display = "none";
+          isMapOpen = false;
+          return;
+        }
+
+        mapSection.style.display = "block";
+        isMapOpen = true;
+        renderMapStores(true);
       });
 
       tabOpen.addEventListener("click", () => {
