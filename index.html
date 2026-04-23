@@ -14,10 +14,33 @@
     body {
       font-family: -apple-system, BlinkMacSystemFont, sans-serif;
       margin: 16px;
+      color: #1c1c1c;
     }
 
     h1 {
       margin: 8px 0;
+    }
+
+    button,
+    select,
+    input,
+    textarea {
+      font-family: inherit;
+    }
+
+    button {
+      padding: 10px 12px;
+      border-radius: 8px;
+      border: 1px solid #d9d9d9;
+      background: #fff;
+      color: #1c1c1c;
+      cursor: pointer;
+      min-height: 40px;
+      box-sizing: border-box;
+    }
+
+    button:hover {
+      background: #f7f5f2;
     }
 
     .top-links {
@@ -39,7 +62,7 @@
       display: flex;
       flex-wrap: wrap;
       gap: 8px;
-      align-items: center;
+      align-items: flex-start;
       margin: 12px 0;
     }
 
@@ -47,6 +70,7 @@
       padding: 10px;
       font-size: 16px;
       box-sizing: border-box;
+      min-height: 40px;
     }
 
     input[type="text"] {
@@ -78,11 +102,13 @@
       line-height: 1;
       cursor: pointer;
       padding: 0;
+      min-height: auto;
       display: none;
     }
 
     .clear-search-btn:hover {
       color: #333;
+      background: transparent;
     }
 
     .stats {
@@ -92,14 +118,16 @@
     }
 
     .store {
-      padding: 10px 8px;
+      padding: 12px 8px;
       border-bottom: 1px solid #eee;
+      cursor: pointer;
     }
 
     .meta {
       color: #666;
       font-size: 12px;
       margin-top: 4px;
+      line-height: 1.5;
     }
 
     .meta a {
@@ -123,6 +151,8 @@
       display: inline-flex;
       align-items: center;
       gap: 6px;
+      white-space: nowrap;
+      min-height: 40px;
     }
 
     #totalStats {
@@ -167,6 +197,7 @@
       font-weight: 600;
       cursor: pointer;
       line-height: 1;
+      min-height: auto;
     }
 
     .memo-btn.is-empty {
@@ -175,6 +206,36 @@
 
     .memo-btn.has-note {
       color: #006241;
+    }
+
+    .memo-btn:hover {
+      background: transparent;
+    }
+
+    .toggle-chip {
+      min-width: 42px;
+      padding: 6px 8px;
+      font-size: 14px;
+      min-height: 34px;
+      border-radius: 999px;
+      border: 1px solid #d7d7d7;
+      background: #fff;
+      color: #666;
+    }
+
+    .toggle-chip.is-active {
+      border-color: #006241;
+      background: #eaf6f1;
+      color: #006241;
+      font-weight: 600;
+    }
+
+    .store-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
     }
 
     .memo-modal-overlay {
@@ -231,6 +292,8 @@
       font-weight: 500;
       cursor: pointer;
       color: #333;
+      padding: 0;
+      min-height: auto;
     }
 
     .visit-count-row button:hover {
@@ -262,14 +325,6 @@
       gap: 8px;
       justify-content: flex-end;
       margin-top: 16px;
-    }
-
-    .memo-actions button {
-      padding: 10px 14px;
-      border-radius: 8px;
-      border: 1px solid #ddd;
-      background: #fff;
-      cursor: pointer;
     }
 
     .memo-actions button.primary {
@@ -305,7 +360,7 @@
       display: flex;
       align-items: center;
       gap: 12px;
-      flex-wrap: nowrap;
+      flex-wrap: wrap;
     }
 
     #mapSection {
@@ -416,6 +471,45 @@
       border: 3px solid #ffffff;
       box-shadow: 0 0 0 2px rgba(47, 128, 237, 0.25);
     }
+
+    .legal-footer {
+      margin-top: 40px;
+      padding: 20px 8px 8px;
+      font-size: 12px;
+      line-height: 1.8;
+      color: #888;
+      text-align: center;
+      border-top: 1px solid #eee;
+    }
+
+    @media (max-width: 640px) {
+      body {
+        margin: 12px;
+      }
+
+      .toolbar > * {
+        width: 100%;
+      }
+
+      .search-wrap,
+      input[type="text"],
+      select {
+        max-width: none;
+      }
+
+      .store-actions {
+        gap: 6px;
+      }
+
+      .toggle-chip {
+        min-width: 38px;
+        font-size: 13px;
+      }
+
+      .map-popup {
+        min-width: 220px;
+      }
+    }
   </style>
 </head>
 <body>
@@ -515,15 +609,26 @@
     </div>
   </div>
 
+  <footer class="legal-footer">
+    本サービスはスターバックス公式とは関係ありません。<br>
+    位置情報は端末内でのみ利用されます。<br>
+    店舗情報は公開されている事実情報をもとに整理しています。
+  </footer>
+
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
   <script>
     const KEY = "visited_storeid_v1";
     const NOTE_KEY = "store_notes_v1";
+    const FAV_KEY = "favorite_storeid_v1";
+    const WANT_KEY = "want_to_go_storeid_v1";
 
     let stores = [];
     let visited = JSON.parse(localStorage.getItem(KEY) || "{}");
     let storeNotes = JSON.parse(localStorage.getItem(NOTE_KEY) || "{}");
+    let favorites = JSON.parse(localStorage.getItem(FAV_KEY) || "{}");
+    let wantToGo = JSON.parse(localStorage.getItem(WANT_KEY) || "{}");
+
     let currentTab = "open";
     let isNearbyOpen = false;
     let currentMemoStoreId = null;
@@ -578,6 +683,14 @@
       localStorage.setItem(NOTE_KEY, JSON.stringify(storeNotes));
     }
 
+    function saveFavorites() {
+      localStorage.setItem(FAV_KEY, JSON.stringify(favorites));
+    }
+
+    function saveWantToGo() {
+      localStorage.setItem(WANT_KEY, JSON.stringify(wantToGo));
+    }
+
     function updateClearSearchBtn() {
       clearSearchBtn.style.display = search.value.trim() === "" ? "none" : "block";
     }
@@ -625,6 +738,16 @@
 
       save();
       saveNotes();
+    }
+
+    function toggleFavorite(storeId) {
+      favorites[storeId] = !favorites[storeId];
+      saveFavorites();
+    }
+
+    function toggleWantToGo(storeId) {
+      wantToGo[storeId] = !wantToGo[storeId];
+      saveWantToGo();
     }
 
     function updateCurrentLocationMarker() {
@@ -710,6 +833,8 @@
       const exportObj = {
         visited,
         storeNotes,
+        favorites,
+        wantToGo,
         exportedAt: new Date().toISOString()
       };
 
@@ -743,6 +868,16 @@
             localStorage.setItem(NOTE_KEY, JSON.stringify(storeNotes));
           }
 
+          if (imported.favorites && typeof imported.favorites === "object") {
+            favorites = imported.favorites;
+            localStorage.setItem(FAV_KEY, JSON.stringify(favorites));
+          }
+
+          if (imported.wantToGo && typeof imported.wantToGo === "object") {
+            wantToGo = imported.wantToGo;
+            localStorage.setItem(WANT_KEY, JSON.stringify(wantToGo));
+          }
+
           render();
           alert("データを読み込みました");
         } catch (err) {
@@ -754,9 +889,36 @@
       reader.readAsText(file);
     }
 
+    function splitCSVLine(line) {
+      const result = [];
+      let current = "";
+      let inQuotes = false;
+
+      for (let i = 0; i < line.length; i++) {
+        const char = line[i];
+
+        if (char === '"') {
+          if (inQuotes && line[i + 1] === '"') {
+            current += '"';
+            i++;
+          } else {
+            inQuotes = !inQuotes;
+          }
+        } else if (char === "," && !inQuotes) {
+          result.push(current);
+          current = "";
+        } else {
+          current += char;
+        }
+      }
+
+      result.push(current);
+      return result;
+    }
+
     function parseCSV(text) {
       const lines = text.trim().split(/\r?\n/);
-      const header = lines.shift().split(",").map(h => h.trim());
+      const header = splitCSVLine(lines.shift()).map(h => h.trim());
 
       const idx = {
         store_id: header.indexOf("store_id"),
@@ -766,14 +928,11 @@
         address: header.indexOf("address"),
         lat: header.indexOf("lat"),
         lng: header.indexOf("lng"),
-        status: header.indexOf("status"),
-        closed_date: header.indexOf("closed_date"),
-        opened_date: header.indexOf("opened_date"),
-        map_url: header.indexOf("map_url")
+        status: header.indexOf("status")
       };
 
       return lines
-        .map(line => line.split(","))
+        .map(splitCSVLine)
         .map(cols => ({
           store_id: (cols[idx.store_id] || "").trim(),
           name: (cols[idx.name] || "").trim(),
@@ -782,10 +941,7 @@
           address: (cols[idx.address] || "").trim(),
           lat: (cols[idx.lat] || "").trim(),
           lng: (cols[idx.lng] || "").trim(),
-          status: (cols[idx.status] || "open").trim().toLowerCase(),
-          closed_date: (cols[idx.closed_date] || "").trim(),
-          opened_date: (cols[idx.opened_date] || "").trim(),
-          map_url: (cols[idx.map_url] || "").trim()
+          status: (cols[idx.status] || "open").trim().toLowerCase()
         }))
         .filter(s => s.name !== "");
     }
@@ -1138,8 +1294,9 @@
 
       const done = baseFiltered.filter(s => visited[s.store_id] === true).length;
       const total = baseFiltered.length;
+      const percent = total > 0 ? Math.round((done / total) * 100) : 0;
 
-      stats.textContent = `進捗：${done} / ${total} 店舗`;
+      stats.textContent = `進捗：${done} / ${total} 店舗（${percent}%）`;
 
       const totalVisitedCount = Object.values(visited).filter(Boolean).length;
       totalStats.innerHTML = `
@@ -1183,12 +1340,11 @@
       filtered.forEach(s => {
         const row = document.createElement("div");
         row.className = "store";
-        row.style.cursor = "pointer";
 
         const title = document.createElement("div");
         title.style.display = "flex";
         title.style.justifyContent = "space-between";
-        title.style.alignItems = "center";
+        title.style.alignItems = "flex-start";
         title.style.gap = "12px";
 
         const noteData = storeNotes[s.store_id];
@@ -1196,6 +1352,8 @@
         const visitCount = noteData && noteData.visitCount ? Number(noteData.visitCount) : 0;
 
         const left = document.createElement("div");
+        left.style.minWidth = "0";
+        left.style.flex = "1";
 
         const storeName = document.createElement("div");
         storeName.textContent = s.name;
@@ -1222,6 +1380,7 @@
         const cb = document.createElement("input");
         cb.type = "checkbox";
         cb.checked = visited[s.store_id] === true;
+        cb.title = "訪問済み";
 
         cb.addEventListener("change", (e) => {
           e.stopPropagation();
@@ -1244,17 +1403,42 @@
         memoBtn.type = "button";
         memoBtn.className = `memo-btn ${hasMemo ? "has-note" : "is-empty"}`;
         memoBtn.textContent = "✎";
+        memoBtn.title = "メモ";
 
         memoBtn.onclick = (e) => {
           e.stopPropagation();
           openMemoModal(s);
         };
 
-        const right = document.createElement("div");
-        right.style.display = "flex";
-        right.style.alignItems = "center";
-        right.style.gap = "8px";
+        const favBtn = document.createElement("button");
+        favBtn.type = "button";
+        favBtn.className = `toggle-chip ${favorites[s.store_id] ? "is-active" : ""}`;
+        favBtn.textContent = favorites[s.store_id] ? "★" : "☆";
+        favBtn.title = "お気に入り";
 
+        favBtn.onclick = (e) => {
+          e.stopPropagation();
+          toggleFavorite(s.store_id);
+          render();
+        };
+
+        const wantBtn = document.createElement("button");
+        wantBtn.type = "button";
+        wantBtn.className = `toggle-chip ${wantToGo[s.store_id] ? "is-active" : ""}`;
+        wantBtn.textContent = wantToGo[s.store_id] ? "行きたい済" : "行きたい";
+        wantBtn.title = "行きたい";
+
+        wantBtn.onclick = (e) => {
+          e.stopPropagation();
+          toggleWantToGo(s.store_id);
+          render();
+        };
+
+        const right = document.createElement("div");
+        right.className = "store-actions";
+
+        right.appendChild(favBtn);
+        right.appendChild(wantBtn);
         right.appendChild(memoBtn);
         right.appendChild(cb);
 
@@ -1265,7 +1449,9 @@
         meta.className = "meta";
 
         const mapLink = getStoreMapLink(s);
-        meta.innerHTML = `${s.pref} ${s.city} / ${s.address} / <a href="${mapLink}" target="_blank" rel="noopener noreferrer">地図を見る</a>`;
+        const favoriteLabel = favorites[s.store_id] ? " / お気に入り" : "";
+        const wantLabel = wantToGo[s.store_id] ? " / 行きたい" : "";
+        meta.innerHTML = `${s.pref} ${s.city} / ${s.address}${favoriteLabel}${wantLabel} / <a href="${mapLink}" target="_blank" rel="noopener noreferrer">Googleマップ</a>`;
 
         row.addEventListener("click", (e) => {
           if (
