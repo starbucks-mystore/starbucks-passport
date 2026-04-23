@@ -1028,7 +1028,7 @@
         row.addEventListener("click", () => {
           searchMode.value = "name";
           search.value = store.name;
-          prefFilter.value = store.pref;
+          prefFilter.value = "";
 
           nearbyResults.innerHTML = "";
           isNearbyOpen = false;
@@ -1317,7 +1317,25 @@
         return matchVisited && matchUnvisited && matchMemo;
       });
 
-      if (sortMode.value === "visitDesc") {
+      if (sortMode.value === "default") {
+        filtered.sort((a, b) => {
+          const aFavorite = a.status !== "closed" && favorites[a.store_id] ? 1 : 0;
+          const bFavorite = b.status !== "closed" && favorites[b.store_id] ? 1 : 0;
+
+          if (bFavorite !== aFavorite) {
+            return bFavorite - aFavorite;
+          }
+
+          const aWant = a.status !== "closed" && wantToGo[a.store_id] ? 1 : 0;
+          const bWant = b.status !== "closed" && wantToGo[b.store_id] ? 1 : 0;
+
+          if (bWant !== aWant) {
+            return bWant - aWant;
+          }
+
+          return a.name.localeCompare(b.name, "ja");
+        });
+      } else if (sortMode.value === "visitDesc") {
         filtered.sort((a, b) => {
           const aCount = storeNotes[a.store_id] && storeNotes[a.store_id].visitCount
             ? Number(storeNotes[a.store_id].visitCount)
@@ -1410,35 +1428,46 @@
           openMemoModal(s);
         };
 
-        const favBtn = document.createElement("button");
-        favBtn.type = "button";
-        favBtn.className = `toggle-chip ${favorites[s.store_id] ? "is-active" : ""}`;
-        favBtn.textContent = favorites[s.store_id] ? "★" : "☆";
-        favBtn.title = "お気に入り";
+        let favBtn = null;
+        let wantBtn = null;
 
-        favBtn.onclick = (e) => {
-          e.stopPropagation();
-          toggleFavorite(s.store_id);
-          render();
-        };
+        if (s.status !== "closed") {
+          favBtn = document.createElement("button");
+          favBtn.type = "button";
+          favBtn.className = `toggle-chip ${favorites[s.store_id] ? "is-active" : ""}`;
+          favBtn.textContent = favorites[s.store_id] ? "★" : "☆";
+          favBtn.title = "お気に入り";
 
-        const wantBtn = document.createElement("button");
-        wantBtn.type = "button";
-        wantBtn.className = `toggle-chip ${wantToGo[s.store_id] ? "is-active" : ""}`;
-        wantBtn.textContent = wantToGo[s.store_id] ? "行きたい済" : "行きたい";
-        wantBtn.title = "行きたい";
+          favBtn.onclick = (e) => {
+            e.stopPropagation();
+            toggleFavorite(s.store_id);
+            render();
+          };
 
-        wantBtn.onclick = (e) => {
-          e.stopPropagation();
-          toggleWantToGo(s.store_id);
-          render();
-        };
+          wantBtn = document.createElement("button");
+          wantBtn.type = "button";
+          wantBtn.className = `toggle-chip ${wantToGo[s.store_id] ? "is-active" : ""}`;
+          wantBtn.textContent = wantToGo[s.store_id] ? "行きたい済" : "行きたい";
+          wantBtn.title = "行きたい";
+
+          wantBtn.onclick = (e) => {
+            e.stopPropagation();
+            toggleWantToGo(s.store_id);
+            render();
+          };
+        }
 
         const right = document.createElement("div");
         right.className = "store-actions";
 
-        right.appendChild(favBtn);
-        right.appendChild(wantBtn);
+        if (favBtn) {
+          right.appendChild(favBtn);
+        }
+
+        if (wantBtn) {
+          right.appendChild(wantBtn);
+        }
+
         right.appendChild(memoBtn);
         right.appendChild(cb);
 
@@ -1449,8 +1478,8 @@
         meta.className = "meta";
 
         const mapLink = getStoreMapLink(s);
-        const favoriteLabel = favorites[s.store_id] ? " / お気に入り" : "";
-        const wantLabel = wantToGo[s.store_id] ? " / 行きたい" : "";
+        const favoriteLabel = s.status !== "closed" && favorites[s.store_id] ? " / お気に入り" : "";
+        const wantLabel = s.status !== "closed" && wantToGo[s.store_id] ? " / 行きたい" : "";
         meta.innerHTML = `${s.pref} ${s.city} / ${s.address}${favoriteLabel}${wantLabel} / <a href="${mapLink}" target="_blank" rel="noopener noreferrer">Googleマップ</a>`;
 
         row.addEventListener("click", (e) => {
